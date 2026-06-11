@@ -101,6 +101,21 @@ Critical parameters only. Non-critical defaults are managed in `config/` files.
 - These scripts do **not** store secrets in the repository; they operate only with your local AWS CLI identity and permissions.
 - Requirements: configured AWS CLI credentials; `jq` is required by `remove-env-params`.
 ---
+## Deployment
+- Deployments run through **GitHub Actions + Deployer**.
+- Pushes to `main` trigger the production workflow in `.github/workflows/deploy.yml`; pushes to `development` trigger the development workflow.
+- GitHub Actions builds Vite assets with `npm run build` and uploads a deployment artifact; the server does **not** build frontend assets or need `node_modules`.
+- Deployer installs the release under `/data/web/wedigbio-reports/releases/<n>` and publishes the active symlink at `/data/web/wedigbio-reports/current`.
+- Production Nginx/PHP-FPM should serve Laravel from:
+  - `/data/web/wedigbio-reports/current/public`
+- Environment files on the server are generated from AWS SSM Parameter Store during deploy via the server-side `generate-env` helper.
+- Historical CSV import is **not** part of normal deploys. Run it manually when needed with:
+
+```bash
+php artisan import:historical --path=/data/web/wedigbio-reports/shiny-server
+```
+
+---
 ## Public routes
 | Route | Description |
 |---|---|
