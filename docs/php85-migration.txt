@@ -1,0 +1,99 @@
+PHP 8.5 Migration Notes (WeDigBio Reports)
+Date reviewed: 2026-06-08
+
+Source references:
+- https://www.php.net/manual/en/migration85.php
+- Related sub-pages: new-features, classes, functions, constants, incompatible, deprecated, other
+
+Purpose:
+This file tracks the PHP 8.5 items that matter for this repository and the decisions made.
+
+======================================================================
+1) Current Project Status
+======================================================================
+
+- Composer requirement is set to PHP ^8.5.
+- App/test suite runs on PHP 8.5 and passes.
+- No immediate 8.5 blockers were found in app code.
+
+======================================================================
+2) Changes Already Applied In This Repository
+======================================================================
+
+- Adopted PHP 8.5 pipe operator (|>) in selected string-normalization paths:
+  - app/Services/HistoricalTranscriptionImporter.php
+
+- Added #[\NoDiscard] on selected methods where ignored return values are likely bugs:
+  - app/Services/HistoricalTranscriptionImporter.php
+  - app/Filament/Widgets/TransactionsByEventChart.php
+
+- Documentation updated to PHP 8.5+ requirements:
+  - README.md
+  - PROD_BOOTSTRAP.md
+
+======================================================================
+3) PHP 8.5 Items Relevant To This App
+======================================================================
+
+3.1 Language / Core
+- Pipe operator (|>) added.
+- #[\NoDiscard] added to indicate important return values.
+- (void) cast can intentionally discard values and suppress NoDiscard warnings.
+- Non-canonical casts are deprecated:
+  - (boolean) -> use (bool)
+  - (integer) -> use (int)
+  - (double)  -> use (float)
+  - (binary)  -> use (string)
+
+3.2 Backward-incompatible / behavioral
+- More ValueError/TypeError strictness in many extensions.
+- Loose object comparisons behavior changed/normalized.
+- Warnings for some casts and invalid conversion cases increased.
+
+3.3 Deprecations to watch
+- __sleep() / __wakeup() soft-deprecated (prefer __serialize() / __unserialize()).
+- Backtick operator (`cmd`) deprecated (prefer explicit process APIs or shell_exec where needed).
+- Using null as array offset deprecated.
+
+======================================================================
+4) Project-Specific Audit Summary
+======================================================================
+
+Checked in app/ code for:
+- non-canonical cast syntax
+- __sleep / __wakeup usage
+- null array offset patterns
+- risky loose object comparisons in critical code paths
+
+Result:
+- No critical issues found.
+- No migration-blocking deprecations detected in app/ code.
+
+======================================================================
+5) Recommended Ongoing Guardrails
+======================================================================
+
+- Keep CI/tests running on PHP 8.5.
+- During code review, reject non-canonical casts.
+- Prefer strict comparisons and explicit type handling.
+- If adding magic serialization, use __serialize/__unserialize.
+
+======================================================================
+6) Quick Verification Commands
+======================================================================
+
+Run from project root:
+
+php --version
+php artisan test
+
+Optional app lint pass:
+
+find app -name "*.php" | xargs -n1 php -l
+
+======================================================================
+7) Notes
+======================================================================
+
+This file intentionally contains a curated summary rather than raw HTML scrape output.
+If needed, keep raw captures in a separate file like docs/php85-migration.raw.txt.

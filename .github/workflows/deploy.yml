@@ -1,0 +1,387 @@
+# CI/CD Deployment Workflow for WeDigBio Reports
+#
+# WORKFLOW:
+# - Push to 'development' branch → Deploys to DEVELOPMENT automatically
+# - Push to 'main' branch → Calculates version → Deploys to PRODUCTION → Creates GitHub release (only on success)
+#
+# VERSION CONTROL:
+# Use commit message tags to control version bumps:
+# - [major] or [breaking] → Major version bump (1.0.0 → 2.0.0)
+# - [minor] or [feature] → Minor version bump (1.0.0 → 1.1.0)
+# - Default (no tag) → Patch version bump (1.0.0 → 1.0.1)
+#
+# SKIP DEPLOYMENT:
+# Add [skip deploy] or [no deploy] to your commit message to push without deploying
+#
+
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - development
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  calculate-version:
+    runs-on: ubuntu-latest
+    if: "github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip deploy]') && !contains(github.event.head_commit.message, '[no deploy]')"
+    outputs:
+      new_version: ${{ steps.new_version.outputs.new_version }}
+      current_version: ${{ steps.version_bump.outputs.current_version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Determine version bump
+        id: version_bump
+        env:
+          CURRENT_COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          # Get the latest tag, check if any tags exist
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No tags found - this is the first release"
+            LATEST_TAG="0.0.0"
+            COMMITS=$(git log --oneline)
+            echo "All commits (first release):"
+          else
+            echo "Latest tag: $LATEST_TAG"
+            COMMITS=$(git log ${LATEST_TAG}..HEAD --oneline)
+            echo "Commits since last tag:"
+          fi
+
+          echo "$COMMITS"
+
+          echo "Current commit message: $(printf '%s' "$CURRENT_COMMIT_MSG")"
+
+          # Determine version bump based on the current commit message only
+          if echo "$CURRENT_COMMIT_MSG" | grep -i "\[major\]\|\[breaking\]"; then
+            BUMP_TYPE="major"
+          elif echo "$CURRENT_COMMIT_MSG" | grep -i "\[minor\]\|\[feature\]"; then
+            BUMP_TYPE="minor"
+          else
+            BUMP_TYPE="patch"
+          fi
+
+          echo "Bump type: $BUMP_TYPE"
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "current_version=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+      - name: Calculate new version
+        id: new_version
+        run: |
+          CURRENT="${{ steps.version_bump.outputs.current_version }}"
+          BUMP_TYPE="${{ steps.version_bump.outputs.bump_type }}"
+
+          if [ "$CURRENT" = "0.0.0" ]; then
+            echo "First release detected - setting version to 1.0.0"
+            NEW_VERSION="1.0.0"
+          else
+            if [[ $CURRENT =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+              MAJOR=${BASH_REMATCH[1]}
+              MINOR=${BASH_REMATCH[2]}
+              PATCH=${BASH_REMATCH[3]}
+            else
+              MAJOR=0
+              MINOR=0
+              PATCH=0
+            fi
+
+            case $BUMP_TYPE in
+              "major")
+                MAJOR=$((MAJOR + 1))
+                MINOR=0
+                PATCH=0
+                ;;
+              "minor")
+                MINOR=$((MINOR + 1))
+                PATCH=0
+                ;;
+              "patch")
+                PATCH=$((PATCH + 1))
+                ;;
+            esac
+
+            NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          fi
+
+          echo "New version: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+  build-and-deploy-production:
+    needs: calculate-version
+    runs-on: ubuntu-latest
+    environment: production
+    if: "github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip deploy]') && !contains(github.event.head_commit.message, '[no deploy]')"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Get Runner IP
+        id: ip
+        run: echo "ipv4=$(curl -s https://checkip.amazonaws.com)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::147899039648:role/GitHubActionsDeployRole
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Whitelist Runner IP in AWS Security Group
+        run: |
+          aws ec2 authorize-security-group-ingress \
+            --region ${{ secrets.AWS_REGION }} \
+            --group-id ${{ secrets.AWS_SECURITY_GROUP_ID }} \
+            --protocol tcp \
+            --port 22 \
+            --cidr ${{ steps.ip.outputs.ipv4 }}/32
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring, xml, bcmath, ctype, json, tokenizer, pdo, pdo_mysql
+
+      - name: Cache Composer packages
+        id: composer-cache
+        uses: actions/cache@v5
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-v3-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-v3-
+
+      - name: Create storage directories
+        run: |
+          mkdir -p storage/framework/cache/data
+          mkdir -p storage/framework/sessions
+          mkdir -p storage/framework/views
+          mkdir -p bootstrap/cache
+
+      - name: Install Composer dependencies for deployment runner
+        run: composer install --prefer-dist --no-progress --optimize-autoloader --no-scripts
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build assets for Production
+        run: npm run build
+
+      - name: Create deployment package
+        run: |
+          rm -rf deployment-package || true
+          TEMP_DIR=$(mktemp -d)
+          rsync -av \
+            --exclude=node_modules \
+            --exclude=.git \
+            --exclude=.github \
+            --exclude=tests \
+            --exclude=storage/logs \
+            --exclude=vendor \
+            . "$TEMP_DIR/"
+          mv "$TEMP_DIR" deployment-package
+
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: wedigbio-reports-${{ github.sha }}
+          path: deployment-package/
+          retention-days: 30
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_PRIVATE_KEY }}
+
+      - name: Add production host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H 3.142.169.134 >> ~/.ssh/known_hosts
+
+      - name: Deploy with Deployer
+        run: vendor/bin/dep deploy production
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REPO: ${{ github.repository }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+          OPCACHE_WEBHOOK_TOKEN: ${{ secrets.OPCACHE_WEBHOOK_TOKEN }}
+
+      - name: Revoke Runner IP from AWS Security Group
+        if: always()
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region ${{ secrets.AWS_REGION }} \
+            --group-id ${{ secrets.AWS_SECURITY_GROUP_ID }} \
+            --protocol tcp \
+            --port 22 \
+            --cidr ${{ steps.ip.outputs.ipv4 }}/32
+
+  create-release:
+    needs: [calculate-version, build-and-deploy-production]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: "github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, '[skip deploy]') && !contains(github.event.head_commit.message, '[no deploy]')"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create Release
+        run: |
+          if [ "${{ needs.calculate-version.outputs.current_version }}" = "0.0.0" ]; then
+            RELEASE_NOTES="## What's Changed
+
+          🎉 **First Release!**
+
+          Auto-generated initial release from main branch.
+
+          **Latest commit:**
+          \`\`\`
+          $COMMIT_MESSAGE
+          \`\`\`"
+          else
+            RELEASE_NOTES="## What's Changed
+
+          Auto-generated release from main branch.
+
+          **Commits included:**
+          \`\`\`
+          $COMMIT_MESSAGE
+          \`\`\`
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ needs.calculate-version.outputs.current_version }}...${{ needs.calculate-version.outputs.new_version }}"
+          fi
+
+          gh release create "${{ needs.calculate-version.outputs.new_version }}" \
+            --title "Release ${{ needs.calculate-version.outputs.new_version }}" \
+            --notes "$RELEASE_NOTES"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+
+  build-and-deploy-development:
+    runs-on: ubuntu-latest
+    environment: development
+    if: "github.ref == 'refs/heads/development' && !contains(github.event.head_commit.message, '[skip deploy]') && !contains(github.event.head_commit.message, '[no deploy]')"
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Get Runner IP
+        id: ip
+        run: echo "ipv4=$(curl -s https://checkip.amazonaws.com)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::147899039648:role/GitHubActionsDeployRole
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Whitelist Runner IP in AWS Security Group
+        run: |
+          aws ec2 authorize-security-group-ingress \
+            --region ${{ secrets.AWS_REGION }} \
+            --group-id ${{ secrets.AWS_SECURITY_GROUP_ID }} \
+            --protocol tcp \
+            --port 22 \
+            --cidr ${{ steps.ip.outputs.ipv4 }}/32
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, bcmath, ctype, json, tokenizer, pdo, pdo_mysql
+
+      - name: Cache Composer packages
+        id: composer-cache
+        uses: actions/cache@v5
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-v3-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-v3-
+
+      - name: Create storage directories
+        run: |
+          mkdir -p storage/framework/cache/data
+          mkdir -p storage/framework/sessions
+          mkdir -p storage/framework/views
+          mkdir -p bootstrap/cache
+
+      - name: Install Composer dependencies for deployment runner
+        run: composer install --prefer-dist --no-progress --optimize-autoloader --no-scripts
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build assets for Development
+        run: npm run build
+
+      - name: Create deployment package
+        run: |
+          rm -rf deployment-package || true
+          TEMP_DIR=$(mktemp -d)
+          rsync -av \
+            --exclude=node_modules \
+            --exclude=.git \
+            --exclude=.github \
+            --exclude=tests \
+            --exclude=storage/logs \
+            --exclude=vendor \
+            . "$TEMP_DIR/"
+          mv "$TEMP_DIR" deployment-package
+
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: wedigbio-reports-${{ github.sha }}
+          path: deployment-package/
+          retention-days: 30
+
+      - name: Setup SSH key
+        uses: webfactory/ssh-agent@v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_PRIVATE_KEY }}
+
+      - name: Add development host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H 3.138.217.206 >> ~/.ssh/known_hosts
+
+      - name: Deploy with Deployer
+        run: vendor/bin/dep deploy development
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REPO: ${{ github.repository }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+          OPCACHE_WEBHOOK_TOKEN: ${{ secrets.OPCACHE_WEBHOOK_TOKEN }}
+
+      - name: Revoke Runner IP from AWS Security Group
+        if: always()
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --region ${{ secrets.AWS_REGION }} \
+            --group-id ${{ secrets.AWS_SECURITY_GROUP_ID }} \
+            --protocol tcp \
+            --port 22 \
+            --cidr ${{ steps.ip.outputs.ipv4 }}/32

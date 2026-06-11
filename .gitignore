@@ -1,0 +1,105 @@
+# ============================================================
+# WeDigBio Reports — .gitignore
+# Based on standard Laravel .gitignore + project-specific additions
+# ============================================================
+# -------------------------------------------------------
+# Environment & Secrets
+# -------------------------------------------------------
+.env
+.env.aws.*
+!.env.aws.example
+.env.backup
+.env.production
+.env.staging
+/auth.json
+/storage/*.key
+# -------------------------------------------------------
+# PHP / Composer
+# -------------------------------------------------------
+/vendor
+composer.phar
+_ide_helper.php
+_ide_helper_models.php
+.phpactor.json
+# -------------------------------------------------------
+# Laravel cached/generated files
+# (bootstrap/cache, storage/framework, storage/logs, storage/app
+#  each have their own .gitignore — listed here for clarity too)
+# -------------------------------------------------------
+/bootstrap/cache/*.php
+/public/hot
+/public/storage
+/storage/pail
+# -------------------------------------------------------
+# Testing
+# -------------------------------------------------------
+.phpunit.result.cache
+/.phpunit.cache
+/coverage
+/.pest/
+# -------------------------------------------------------
+# Node / Frontend build
+# -------------------------------------------------------
+/node_modules
+/public/build
+/public/css/filament
+/public/js/filament
+/public/fonts/filament
+/public/vendor
+/public/fonts-manifest.dev.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log
+.npm
+.yarn
+# -------------------------------------------------------
+# SQLite development database
+# (production uses MySQL; SQLite is dev-only)
+# -------------------------------------------------------
+/database/database.sqlite
+/database/database.sqlite-shm
+/database/database.sqlite-wal
+# -------------------------------------------------------
+# Log files
+# -------------------------------------------------------
+*.log
+/storage/logs/laravel.log
+/storage/logs/supervisor-queue-worker.log
+# -------------------------------------------------------
+# OS-specific
+# -------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+Desktop.ini
+*:Zone.Identifier
+*.Zone.Identifier
+# -------------------------------------------------------
+# IDE / Editor workspaces
+# -------------------------------------------------------
+/.idea
+/.vscode
+/.zed
+/.nova
+/.cursor/
+/.codex
+# -------------------------------------------------------
+# Documentation
+# (only root README.md is committed; all other markdown docs are ignored)
+# -------------------------------------------------------
+*.md
+!/README.md
+# -------------------------------------------------------
+# External dependencies / Separate projects
+# -------------------------------------------------------
+# /shiny-server/ is a separate R/Shiny codebase (2016–present historical charts)
+# It's wired as a separate directory structure, not part of this Laravel app
+/shiny-server
+# -------------------------------------------------------
+# Laravel Homestead (local dev VM — not used in this project)
+# -------------------------------------------------------
+Homestead.json
+Homestead.yaml
+/cront.txt
+/.editorconfig
