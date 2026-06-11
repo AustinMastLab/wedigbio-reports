@@ -65,11 +65,11 @@ Critical parameters only. Non-critical defaults are managed in `config/` files.
 |---|---|---|
 | `APP_KEY` | (base64 encoded) | Generated via `php artisan key:generate` |
 | `APP_DEBUG` | `false` | Must be false in production |
-| `APP_URL` | `https://reports.wedigbio.org` | Full public URL |
-| `DB_HOST` | `172.31.20.104` | Database host |
+| `APP_URL` | `https://example.com` | Full public URL |
+| `DB_HOST` | `db.internal.example` | Database host |
 | `DB_PORT` | `3306` | Database port |
-| `DB_DATABASE` | `wedigbio_report` | Database name |
-| `DB_USERNAME` | `drupal_wedigbio` | Database user |
+| `DB_DATABASE` | `your_database_name` | Database name |
+| `DB_USERNAME` | `your_database_user` | Database user |
 | `DB_PASSWORD` | `…` | Database password |
 | `REDIS_HOST` | `127.0.0.1` | Redis host (production-specific) |
 | `REDIS_DB` | `2` | Redis database (production-specific) |
@@ -77,9 +77,9 @@ Critical parameters only. Non-critical defaults are managed in `config/` files.
 | `MAIL_HOST` | `smtp.gmail.com` | Mail server host |
 | `MAIL_PORT` | `587` | Mail server port |
 | `MAIL_ENCRYPTION` | `tls` | Mail encryption method |
-| `MAIL_USERNAME` | `wedigbio@gmail.com` | Mail account |
+| `MAIL_USERNAME` | `your-mail-account@example.com` | Mail account |
 | `MAIL_PASSWORD` | `…` | Mail password |
-| `MAIL_FROM_ADDRESS` | `wedigbio@gmail.com` | From email address |
+| `MAIL_FROM_ADDRESS` | `no-reply@example.com` | From email address |
 | `MAIL_FROM_NAME` | `WeDigBio Reports` | From display name |
 
 **Note:** Config file defaults handle session driver, cache store, queue connection, logging levels, and other non-critical settings. Only override via `.env` if production needs differ.
