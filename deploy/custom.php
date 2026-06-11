@@ -169,6 +169,38 @@ task('env:ssm', function () {
     run($cmd);
 })->once();
 
+desc('Run one-time historical bootstrap on first deploy');
+task('bootstrap:first-deploy', function () {
+    $flag = strtolower((string) ($_ENV['FIRST_DEPLOY_BOOTSTRAP'] ?? getenv('FIRST_DEPLOY_BOOTSTRAP') ?? ''));
+    $enabled = in_array($flag, ['1', 'true', 'yes', 'on'], true);
+
+    if (! $enabled) {
+        writeln('⏭️  Skipping first-deploy bootstrap (FIRST_DEPLOY_BOOTSTRAP not enabled).');
+
+        return;
+    }
+
+    $marker = '{{deploy_path}}/shared/.first_deploy_bootstrap_done';
+    $shinyPath = '{{deploy_path}}/shiny-server';
+
+    if (test("[ -f {$marker} ]")) {
+        writeln('⏭️  Skipping first-deploy bootstrap (already completed).');
+
+        return;
+    }
+
+    if (! test("[ -d {$shinyPath} ]")) {
+        throw new \RuntimeException("First-deploy bootstrap requested but shiny-server path not found: {$shinyPath}");
+    }
+
+    cd('{{release_or_current_path}}');
+    run("php artisan import:historical --path='{$shinyPath}'");
+    run('php artisan ingest:aggregate');
+    run("touch {$marker}");
+
+    writeln('✅ First-deploy bootstrap completed and marked as done.');
+});
+
 desc('Verify flat deployment structure');
 task('deploy:verify-structure', function () {
     $nestCheck = run('find {{release_path}} -type d -name "deployment-package" | wc -l');

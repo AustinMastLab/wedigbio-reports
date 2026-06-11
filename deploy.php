@@ -118,6 +118,7 @@ task('deploy', [
 
     // Phase 4: Database & Updates
     'artisan:migrate',         // Run database migrations
+    'bootstrap:first-deploy',  // Optional one-time historical import + aggregate
 
     // Phase 5: Cache Optimization
     'artisan:optimize:clear',  // Clear all Laravel caches

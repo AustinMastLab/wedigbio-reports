@@ -218,6 +218,7 @@ jobs:
           GITHUB_REPO: ${{ github.repository }}
           API_TOKEN: ${{ secrets.API_TOKEN }}
           OPCACHE_WEBHOOK_TOKEN: ${{ secrets.OPCACHE_WEBHOOK_TOKEN }}
+          FIRST_DEPLOY_BOOTSTRAP: ${{ secrets.FIRST_DEPLOY_BOOTSTRAP }}
 
       - name: Revoke Runner IP from AWS Security Group
         if: always()
