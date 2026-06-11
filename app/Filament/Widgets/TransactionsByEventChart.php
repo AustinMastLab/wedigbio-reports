@@ -17,8 +17,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 namespace App\Filament\Widgets;
 
+use App\Models\ChartAggregateHourly;
+use App\Models\Event;
 use App\Models\TranscriptionRecord;
 use Filament\Widgets\ChartWidget;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Admin dashboard chart that summarizes total transactions per event.
@@ -67,19 +70,53 @@ class TransactionsByEventChart extends ChartWidget
     #[\NoDiscard]
     protected function getData(): array
     {
-        $rows = TranscriptionRecord::query()
-            ->join('events', 'events.id', '=', 'transcription_records.event_id')
-            ->selectRaw('events.id, events.year, events.season, events.slug, COUNT(*) as total_transactions')
-            ->groupBy('events.id', 'events.year', 'events.season', 'events.slug')
-            ->orderBy('events.year')
-            ->orderByRaw("CASE WHEN events.season = 'spring' THEN 1 WHEN events.season = 'fall' THEN 2 ELSE 3 END")
-            ->orderBy('events.slug')
-            ->get();
+        $rows = Cache::remember('admin:transactions-by-event:v2', now()->addMinutes(10), function () {
+            $events = Event::query()
+                ->select('id', 'year', 'season', 'slug')
+                ->orderBy('year')
+                ->orderByRaw("CASE WHEN season = 'spring' THEN 1 WHEN season = 'fall' THEN 2 ELSE 3 END")
+                ->orderBy('slug')
+                ->get();
 
-        $labels = $rows
-            ->map(function ($row): string {
-                $year = (string) $row->year;
-                $season = trim((string) ($row->season ?? ''));
+            if ($events->isEmpty()) {
+                return [];
+            }
+
+            // Fast path: use pre-aggregated hourly totals per event.
+            $totalsByEventId = ChartAggregateHourly::query()
+                ->selectRaw('event_id, SUM(raw_sum) as total_transactions')
+                ->groupBy('event_id')
+                ->pluck('total_transactions', 'event_id');
+
+            // Fallback only for events with no aggregate rows yet.
+            $missingEventIds = $events->pluck('id')->diff($totalsByEventId->keys());
+
+            if ($missingEventIds->isNotEmpty()) {
+                $fallbackTotals = TranscriptionRecord::query()
+                    ->selectRaw('event_id, COUNT(*) as total_transactions')
+                    ->whereIn('event_id', $missingEventIds)
+                    ->groupBy('event_id')
+                    ->pluck('total_transactions', 'event_id');
+
+                $totalsByEventId = $totalsByEventId->merge($fallbackTotals);
+            }
+
+            // Cache only scalar arrays to avoid unserialize issues across cache drivers.
+            return $events->map(static function (Event $event) use ($totalsByEventId): array {
+                return [
+                    'id' => $event->id,
+                    'year' => (int) $event->year,
+                    'season' => (string) ($event->season ?? ''),
+                    'slug' => (string) $event->slug,
+                    'total_transactions' => (int) ($totalsByEventId[$event->id] ?? 0),
+                ];
+            })->all();
+        });
+
+        $labels = collect($rows)
+            ->map(function (array $row): string {
+                $year = (string) ($row['year'] ?? '');
+                $season = trim((string) ($row['season'] ?? ''));
 
                 if ($season === '') {
                     return $year;
@@ -89,7 +126,7 @@ class TransactionsByEventChart extends ChartWidget
             })
             ->all();
 
-        $data = $rows->pluck('total_transactions')->map(fn ($value) => (int) $value)->all();
+        $data = collect($rows)->pluck('total_transactions')->map(fn ($value) => (int) $value)->all();
         $isLine = $this->filter === 'line';
 
         return [
