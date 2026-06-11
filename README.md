@@ -54,9 +54,6 @@ npm run build
 php artisan import:historical --path="$(pwd)/shiny-server"
 # 7. Start the dev server
 php artisan serve
-```
-Admin panel is at `http://localhost:8000/admin`.  
-Default dev credentials: `admin@wedigbio.test` / `wedigbio`
 ---
 ## Environment variables (Production — push to Parameter Store)
 Critical parameters only. Non-critical defaults are managed in `config/` files.
@@ -145,10 +142,6 @@ All chart responses include `meta.bucket_size` (`'minute'` or `'hour'`) and `met
 php artisan test
 ```
 All tests use an in-memory SQLite database and do not touch the production MySQL instance.
----
-## Production bootstrap
-See **[PROD_BOOTSTRAP.md](PROD_BOOTSTRAP.md)** for full first-time server setup, post-deploy verification SQL, and troubleshooting steps.
-See **[PROJECT_HANDOFF.md](PROJECT_HANDOFF.md)** for complete feature inventory and live-event rehearsal checklist.
 ---
 ## License
 Copyright (C) 2026, WeDigBio — [wedigbio@gmail.com](mailto:wedigbio@gmail.com)
