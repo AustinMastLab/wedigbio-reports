@@ -8,13 +8,86 @@ function initEventShowDashboard() {
         return;
     }
 
-    const hasData = root.dataset.hasData === '1';
-    if (!hasData) {
-        return;
-    }
-
     const isLive = root.dataset.isLive === '1';
     const reloadMs = Number.parseInt(root.dataset.reloadMs ?? '900000', 10);
+    const noDataReloadMs = Number.parseInt(root.dataset.noDataReloadMs ?? '60000', 10);
+    const hasData = root.dataset.hasData === '1';
+    if (!hasData) {
+        if (!isLive) {
+            return;
+        }
+
+        const startedText = 'This live event has started, but no transcription records have arrived from enabled source feeds yet.';
+        const countdownMessage = document.getElementById('live-event-countdown-message');
+        const refreshNote = document.getElementById('live-event-refresh-note');
+        let reloadTimerStarted = false;
+
+        const startNoDataReloadTimer = () => {
+            if (reloadTimerStarted) {
+                return;
+            }
+
+            reloadTimerStarted = true;
+            if (refreshNote) {
+                refreshNote.style.display = '';
+            }
+
+            setTimeout(() => location.reload(), Number.isNaN(noDataReloadMs) ? 60000 : noDataReloadMs);
+        };
+
+        if (!countdownMessage) {
+            startNoDataReloadTimer();
+            return;
+        }
+
+        const hoursEl = document.getElementById('live-event-countdown-hours');
+        const minutesEl = document.getElementById('live-event-countdown-minutes');
+        const startsAtIso = countdownMessage.dataset.startsAt;
+        const startsAt = startsAtIso ? new Date(startsAtIso) : null;
+
+        if (!startsAt || Number.isNaN(startsAt.getTime())) {
+            countdownMessage.textContent = startedText;
+            startNoDataReloadTimer();
+            return;
+        }
+
+        const updateCountdown = () => {
+            const now = new Date();
+            const diffMs = startsAt.getTime() - now.getTime();
+
+            if (diffMs <= 0) {
+                countdownMessage.textContent = startedText;
+                startNoDataReloadTimer();
+
+                return false;
+            }
+
+            const totalMinutes = Math.floor(diffMs / 60000);
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+
+            if (hoursEl) {
+                hoursEl.textContent = String(hours);
+            }
+            if (minutesEl) {
+                minutesEl.textContent = String(minutes);
+            }
+
+            return true;
+        };
+
+        if (!updateCountdown()) {
+            return;
+        }
+
+        const countdownInterval = setInterval(() => {
+            if (!updateCountdown()) {
+                clearInterval(countdownInterval);
+            }
+        }, 1000);
+
+        return;
+    }
     const timezoneToggle = document.getElementById('chart-timezone-toggle');
     const timezoneLabelUtc = document.getElementById('chart-timezone-label-utc');
     const timezoneLabelLocal = document.getElementById('chart-timezone-label-local');

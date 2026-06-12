@@ -1,5 +1,5 @@
 [program:wedigbio-ingest]
-directory=/data/web/wedigbio-reports/current
+directory={{SUPERVISOR_DIRECTORY}}
 command=/usr/bin/php artisan queue:work beanstalkd --queue=wedigbio-ingest --sleep=3 --tries=3 --timeout=120 --max-time=3600
 process_name=%(program_name)s_%(process_num)02d
 numprocs=2
@@ -14,8 +14,9 @@ user=ubuntu
 redirect_stderr=true
 
 ; === Better logging setup ===
-stdout_logfile=/data/web/wedigbio-reports/shared/storage/logs/supervisor-queue-worker.log
-stdout_logfile_maxbytes=50MB          ; 20MB is quite small for queue workers
-stdout_logfile_backups=10             ; Keep a bit more history
+stdout_logfile={{SUPERVISOR_LOG_FILE}}
+stdout_logfile_maxbytes=50MB          ; 50MB log size before rotation
+stdout_logfile_backups=10             ; Keep 10 rotated logs
 
-environment=APP_ENV="production"
+environment=APP_ENV="{{APP_ENV}}"
+

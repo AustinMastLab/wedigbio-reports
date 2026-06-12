@@ -103,5 +103,65 @@ class EventNoDataPresentationTest extends TestCase
         $response->assertSee('WeDigBio 2025');
         $response->assertSee('No data');
     }
-}
 
+    public function test_event_show_displays_archived_import_copy_for_archived_event_without_records(): void
+    {
+        $event = Event::create([
+            'name' => 'WeDigBio 2025',
+            'slug' => '2025',
+            'year' => 2025,
+            'starts_at' => now()->subDay(),
+            'ends_at' => now()->addDay(),
+            'is_public' => true,
+            'is_live' => false,
+            'is_archived' => true,
+        ]);
+
+        $response = $this->get(route('events.show', $event));
+
+        $response->assertOk();
+        $response->assertSee('This year is still listed for historical completeness, but chart data was not available from source feeds during import.');
+        $response->assertDontSee('This live event has started, but no transcription records have arrived from enabled source feeds yet.');
+    }
+
+    public function test_event_show_displays_live_no_data_copy_for_live_event_without_records(): void
+    {
+        $event = Event::create([
+            'name' => 'WeDigBio 2026',
+            'slug' => '2026',
+            'year' => 2026,
+            'starts_at' => now()->subHour(),
+            'ends_at' => now()->addDay(),
+            'is_public' => true,
+            'is_live' => true,
+            'is_archived' => false,
+        ]);
+
+        $response = $this->get(route('events.show', $event));
+
+        $response->assertOk();
+        $response->assertSee('This live event has started, but no transcription records have arrived from enabled source feeds yet.');
+        $response->assertDontSee('This year is still listed for historical completeness, but chart data was not available from source feeds during import.');
+    }
+
+    public function test_event_show_displays_countdown_copy_for_future_live_event_without_records(): void
+    {
+        $event = Event::create([
+            'name' => 'WeDigBio 2026 Future',
+            'slug' => '2026-future',
+            'year' => 2026,
+            'starts_at' => now()->addHours(2)->addMinutes(15),
+            'ends_at' => now()->addDay(),
+            'is_public' => true,
+            'is_live' => true,
+            'is_archived' => false,
+        ]);
+
+        $response = $this->get(route('events.show', $event));
+
+        $response->assertOk();
+        $response->assertSee('This live event will start in');
+        $response->assertSee('id="live-event-countdown-message"', false);
+        $response->assertDontSee('id="live-event-started-message"', false);
+    }
+}

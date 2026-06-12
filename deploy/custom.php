@@ -201,23 +201,16 @@ task('clear:package-cache', function () {
 
 desc('Ensure Supervisor log directory exists');
 task('supervisor:ensure-log-dir', function () {
-    $logDir = '/var/log/supervisor';
-    $appTag = get('app_tag', 'app');        // fallback if not set
+    $environment = currentHost()->get('environment') ?? 'development';
+    $logDir = ($environment === 'production' || $environment === 'development')
+        ? '{{deploy_path}}/shared/storage/logs'
+        : '/data/web/wedigbio-reports/storage/logs';
 
-    // Create main log dir if missing
-    run("sudo mkdir -p {$logDir}");
-
-    // Create app-specific log dir (e.g. /var/log/supervisor/digacad)
-    $appLogDir = "{$logDir}/{$appTag}";
-    run("sudo mkdir -p {$appLogDir}");
-
-    // Optional: set sane permissions
-    run("sudo chown root:root {$logDir}");
+    run("mkdir -p {$logDir}");
+    run("sudo chown ubuntu:ubuntu {$logDir}");
     run("sudo chmod 755 {$logDir}");
-    run("sudo chown ubuntu:ubuntu {$appLogDir}");   // or www-data:www-data
-    run("sudo chmod 755 {$appLogDir}");
 
-    writeln("Supervisor log directory ready: {$appLogDir}");
+    writeln("✅ Supervisor log directory ready for {$environment}: {$logDir}");
 });
 
 /**
@@ -236,3 +229,51 @@ task('artisan:filament:optimize', function () {
     run('php artisan filament:optimize --ansi');
     writeln('✅ Filament optimization completed');
 });
+
+/*
+ * =============================================================================
+ * SUPERVISOR CONFIGURATION GENERATION
+ * =============================================================================
+ */
+
+desc('Generate supervisor config from template');
+task('supervisor:generate-config', function () {
+    $templateFile = 'ops/supervisor/wedigbio-ingest.conf.template';
+    $outputFile = 'ops/supervisor/wedigbio-ingest.conf';
+
+    if (!file_exists($templateFile)) {
+        throw new \Exception("Template file not found: {$templateFile}");
+    }
+
+    $template = file_get_contents($templateFile);
+    $environment = currentHost()->get('environment') ?? 'development';
+
+    // Production and Development use /data/web/wedigbio-reports/current
+    // Local development uses absolute path /data/web/wedigbio-reports
+    $directory = ($environment === 'production' || $environment === 'development')
+        ? '/data/web/wedigbio-reports/current'
+        : '/data/web/wedigbio-reports';
+
+    // Deployer hosts write logs into shared storage; local writes to app storage
+    $logFile = ($environment === 'production' || $environment === 'development')
+        ? '/data/web/wedigbio-reports/shared/storage/logs/wedigbio-ingest.log'
+        : '/data/web/wedigbio-reports/storage/logs/wedigbio-ingest.log';
+
+    $replacements = [
+        '{{SUPERVISOR_DIRECTORY}}' => $directory,
+        '{{APP_ENV}}' => $environment,
+        '{{SUPERVISOR_LOG_FILE}}' => $logFile,
+    ];
+
+    $config = str_replace(
+        array_keys($replacements),
+        array_values($replacements),
+        $template
+    );
+
+    file_put_contents($outputFile, $config);
+    writeln("✅ Supervisor config generated for {$environment} environment");
+    writeln("   Directory: {$directory}");
+    writeln("   Log file: {$logFile}");
+})->once();
+

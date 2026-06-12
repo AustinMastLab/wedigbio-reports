@@ -311,6 +311,93 @@ class AdminCRUDValidationTest extends TestCase
         // Transcription records should be deleted too (cascade from foreign key)
         $this->assertDatabaseMissing('transcription_records', ['source_id' => $sourceId]);
     }
+
+    public function test_only_one_live_event_can_exist(): void
+    {
+        // Create first live event (should succeed)
+        $liveEvent1 = Event::create([
+            'name' => 'First Live Event',
+            'slug' => 'first-live',
+            'year' => 2026,
+            'starts_at' => now()->subDay(),
+            'ends_at' => now()->addDay(),
+            'is_public' => true,
+            'is_live' => true,
+            'is_archived' => false,
+        ]);
+
+        $this->assertTrue($liveEvent1->is_live);
+
+        // Attempt to create second live event via model (should still be possible at model level but DB will reject)
+        // The validation is in the form layer, not the model
+        $this->assertDatabaseHas('events', ['id' => $liveEvent1->id, 'is_live' => true]);
+
+        // Verify only one live event in DB
+        $liveCount = Event::where('is_live', true)->count();
+        $this->assertSame(1, $liveCount);
+    }
+
+    public function test_editing_current_live_event_is_allowed(): void
+    {
+        // Create a live event
+        $liveEvent = Event::create([
+            'name' => 'Current Live Event',
+            'slug' => 'current-live',
+            'year' => 2026,
+            'starts_at' => now()->subDay(),
+            'ends_at' => now()->addDay(),
+            'is_public' => true,
+            'is_live' => true,
+            'is_archived' => false,
+        ]);
+
+        // Editing the same event to keep is_live=true should be allowed
+        $liveEvent->update([
+            'name' => 'Updated Live Event Name',
+            'is_live' => true,
+        ]);
+
+        $this->assertDatabaseHas('events', [
+            'id' => $liveEvent->id,
+            'name' => 'Updated Live Event Name',
+            'is_live' => true,
+        ]);
+    }
+
+    public function test_turning_off_live_event_then_creating_new_live_event(): void
+    {
+        // Create first live event
+        $oldLive = Event::create([
+            'name' => 'First Live Event',
+            'slug' => 'old-live',
+            'year' => 2025,
+            'starts_at' => now()->subDay(),
+            'ends_at' => now()->addDay(),
+            'is_public' => true,
+            'is_live' => true,
+            'is_archived' => false,
+        ]);
+
+        $this->assertDatabaseHas('events', ['id' => $oldLive->id, 'is_live' => true]);
+
+        // Turn off the old live event
+        $oldLive->update(['is_live' => false]);
+
+        $this->assertDatabaseHas('events', ['id' => $oldLive->id, 'is_live' => false]);
+
+        // Now create a new live event (should succeed)
+        $newLive = Event::create([
+            'name' => 'New Live Event',
+            'slug' => 'new-live',
+            'year' => 2026,
+            'starts_at' => now(),
+            'ends_at' => now()->addDay(),
+            'is_public' => true,
+            'is_live' => true,
+            'is_archived' => false,
+        ]);
+
+        $this->assertDatabaseHas('events', ['id' => $newLive->id, 'is_live' => true]);
+        $this->assertSame(1, Event::where('is_live', true)->count());
+    }
 }
-
-

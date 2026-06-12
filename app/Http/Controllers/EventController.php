@@ -53,4 +53,42 @@ class EventController extends Controller
 
         return view('events.show', compact('event', 'hasData'));
     }
+
+    /**
+     * Render an embeddable light-theme single-chart page for Drupal blocks.
+     * Auto-discovers the current live event. Returns "No Event Found" if none exists.
+     * Chart type passed via ?chart=total-activity or ?chart=activity-by-center
+     */
+    public function embedChart()
+    {
+        $chartType = request()->query('chart');
+
+        // Validate chart type
+        if (!in_array($chartType, ['total-activity', 'activity-by-center'])) {
+            return view('events.embed-chart-error', [
+                'message' => 'Invalid or missing chart type. Use ?chart=total-activity or ?chart=activity-by-center',
+            ]);
+        }
+
+        // Find the current live event
+        $event = Event::where('is_live', true)
+            ->where('is_public', true)
+            ->first();
+
+        if (!$event) {
+            return view('events.embed-chart-error', [
+                'message' => 'No live event found.',
+            ]);
+        }
+
+        $hasData = $event->transcriptionRecords()->exists();
+        $chartTitle = $chartType === 'total-activity' ? 'Total Transcription Activity' : 'Activity by Center';
+
+        return view('events.embed-chart', [
+            'event' => $event,
+            'hasData' => $hasData,
+            'chartType' => $chartType,
+            'chartTitle' => $chartTitle,
+        ]);
+    }
 }

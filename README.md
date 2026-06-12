@@ -112,6 +112,23 @@ Critical parameters only. Non-critical defaults are managed in `config/` files.
 php artisan import:historical --path=/data/web/wedigbio-reports/shiny-server
 ```
 
+### Supervisor queue worker config (environment-aware)
+- Template file: `ops/supervisor/wedigbio-ingest.conf.template`
+- Generated file: `ops/supervisor/wedigbio-ingest.conf` (git-ignored)
+- Deployer task `supervisor:generate-config` fills these placeholders per environment:
+  - `{{SUPERVISOR_DIRECTORY}}`
+  - `{{SUPERVISOR_LOG_FILE}}`
+  - `{{APP_ENV}}`
+- Environment behavior:
+  - `production`/`development`: directory `/data/web/wedigbio-reports/current`, log `/data/web/wedigbio-reports/shared/storage/logs/wedigbio-ingest.log`
+  - `local`: directory `/data/web/wedigbio-reports`, log `/data/web/wedigbio-reports/storage/logs/wedigbio-ingest.log`
+- During deploy, `supervisor:ensure-log-dir` runs before `supervisor:reload` so `supervisorctl reread` does not fail due to a missing log directory.
+- Local setup helper:
+
+```bash
+./setup-supervisor-local.sh
+```
+
 ---
 ## Public routes
 | Route | Description |

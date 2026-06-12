@@ -27,6 +27,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class EventForm
 {
@@ -125,7 +126,24 @@ class EventForm
                         Toggle::make('is_public')
                             ->helperText('Show on public event list'),
                         Toggle::make('is_live')
-                            ->helperText('Enable live chart reload for this event'),
+                            ->helperText('Enable live chart reload for this event')
+                            ->rules([
+                                function ($attribute, $value, $fail) {
+                                    // If trying to set is_live=true, check if another live event exists
+                                    if ($value === true) {
+                                        // Get the current record ID if editing (to exclude from check)
+                                        $recordId = optional($this->livewire?->data['record'] ?? null)?->id;
+
+                                        $liveExists = Event::where('is_live', true)
+                                            ->when($recordId, fn ($q) => $q->whereNot('id', $recordId))
+                                            ->exists();
+
+                                        if ($liveExists) {
+                                            $fail('Only one event can be marked as live at a time. Please disable the existing live event first.');
+                                        }
+                                    }
+                                },
+                            ]),
                         Toggle::make('is_archived')
                             ->helperText('Mark as archived (static data only)'),
                     ]),
