@@ -190,7 +190,7 @@ class IngestionJobsTest extends TestCase
         $notLiveEvent = Event::create([
             'name' => 'Not Live Event',
             'slug' => 'not-live-event',
-            'year' => 2026,
+            'year' => 2027,
             'season' => 'spring',
             'starts_at' => now()->subHour(),
             'ends_at' => now()->addHour(),

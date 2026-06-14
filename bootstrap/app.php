@@ -1,5 +1,7 @@
 <?php
 
+use App\Jobs\PollSourcesJob;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -12,6 +14,14 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withCommands()
+    ->withSchedule(function (Schedule $schedule): void {
+        // Poll every minute (jobs fan out per event/source pair)
+        $schedule->job(new PollSourcesJob)->everyMinute()->withoutOverlapping();
+
+        // Hourly safety net — re-aggregate all active events even if ingestion had no new pages
+        $schedule->command('ingest:aggregate')->hourly()->withoutOverlapping();
+    })
     ->withMiddleware(function (Middleware $middleware): void {
         //
     })

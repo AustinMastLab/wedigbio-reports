@@ -45,6 +45,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            ->homeUrl(url('/'))
             ->favicon(asset('favicon.ico'))
             ->colors([
                 'primary' => Color::Amber,
@@ -53,12 +54,6 @@ class AdminPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
                 Dashboard::class,
-            ])
-            ->navigationItems([
-                NavigationItem::make('Back to Site')
-                    ->url(url('/'))
-                    ->icon(Heroicon::Home)
-                    ->sort(-100),
             ])
             ->widgets([
                 AdminOverviewStats::class,

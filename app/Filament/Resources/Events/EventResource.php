@@ -56,8 +56,8 @@ class EventResource extends Resource
             Section::make('Event Summary')
                 ->columns(4)
                 ->schema([
-                    TextEntry::make('name')
-                        ->label('Event Name')
+                    TextEntry::make('display_name')
+                        ->label('Name')
                         ->columnSpan(2),
                     TextEntry::make('slug')
                         ->columnSpan(2),

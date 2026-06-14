@@ -103,3 +103,8 @@ Homestead.json
 Homestead.yaml
 /cront.txt
 /.editorconfig
+# -------------------------------------------------------
+# Supervisor configuration (generated from template)
+# -------------------------------------------------------
+/ops/supervisor/*.conf
+!/ops/supervisor/*.conf.template

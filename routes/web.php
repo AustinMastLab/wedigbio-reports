@@ -19,4 +19,5 @@ use App\Http\Controllers\EventController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [EventController::class, 'index'])->name('home');
+Route::get('/events/embed', [EventController::class, 'embedChart'])->name('events.embed-chart');
 Route::get('/events/{event:slug}', [EventController::class, 'show'])->name('events.show');

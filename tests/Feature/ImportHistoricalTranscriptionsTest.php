@@ -48,7 +48,10 @@ class ImportHistoricalTranscriptionsTest extends TestCase
 
         $this->assertSame(0, $exitCode);
 
-        $event = Event::where('slug', '2025')->firstOrFail();
+        $event = Event::query()
+            ->where('year', 2025)
+            ->where('season', 'spring')
+            ->firstOrFail();
         $this->assertSame(0, $event->transcriptionRecords()->count());
         $this->assertSame(0, $event->sources()->count());
         $this->assertStringContainsString('No transcription rows were available for this event year.', (string) $event->notes);
@@ -154,7 +157,10 @@ class ImportHistoricalTranscriptionsTest extends TestCase
 
         $this->assertSame(0, $exitCode);
 
-        $event = Event::where('slug', '2020-lite')->firstOrFail();
+        $event = Event::query()
+            ->where('year', 2020)
+            ->where('season', 'spring')
+            ->firstOrFail();
         $this->assertSame('spring', $event->season);
         $this->assertSame('2020', $event->display_alias);
     }
@@ -186,8 +192,8 @@ class ImportHistoricalTranscriptionsTest extends TestCase
         ]);
 
         $this->assertSame(0, $exitCode);
-        $this->assertDatabaseHas('events', ['slug' => '2016']);
-        $this->assertDatabaseHas('events', ['slug' => '2019']);
+        $this->assertDatabaseHas('events', ['slug' => Event::buildCanonicalSlug(2016, 'spring')]);
+        $this->assertDatabaseHas('events', ['slug' => Event::buildCanonicalSlug(2019, 'spring')]);
         $this->assertDatabaseHas('sources', ['slug' => 'digivol']);
         $this->assertDatabaseHas('sources', ['slug' => 'les-herbonautes']);
         $this->assertDatabaseMissing('sources', ['slug' => 'historical-csv']);
@@ -199,8 +205,14 @@ class ImportHistoricalTranscriptionsTest extends TestCase
         $this->assertSame(4, TranscriptionRecord::count());
         $this->assertSame(4, ChartAggregateHourly::count(), 'Hourly aggregates should be created for each record hour/center bucket');
 
-        $event2016 = Event::where('slug', '2016')->firstOrFail();
-        $event2019 = Event::where('slug', '2019')->firstOrFail();
+        $event2016 = Event::query()
+            ->where('year', 2016)
+            ->where('season', 'spring')
+            ->firstOrFail();
+        $event2019 = Event::query()
+            ->where('year', 2019)
+            ->where('season', 'spring')
+            ->firstOrFail();
         $digiVol = Source::where('slug', 'digivol')->firstOrFail();
         $herbonautes = Source::where('slug', 'les-herbonautes')->firstOrFail();
 
@@ -209,8 +221,8 @@ class ImportHistoricalTranscriptionsTest extends TestCase
         $this->assertTrue($event2019->sources()->whereKey($herbonautes->id)->exists());
         $this->assertSame('spring', $event2016->season);
         $this->assertSame('spring', $event2019->season);
-        $this->assertSame('WeDigBio 2016', $event2016->name);
-        $this->assertSame('WeDigBio 2019', $event2019->name);
+        $this->assertSame('WeDigBio 2016 Spring', $event2016->display_name);
+        $this->assertSame('WeDigBio 2019 Spring', $event2019->display_name);
     }
 }
 

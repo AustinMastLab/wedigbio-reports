@@ -74,6 +74,7 @@ class SourceAdapterMappingTest extends TestCase
             // Should send rowStart=200 and timestampStart, but NOT timestamp or redundant page_token
             return str_contains($url, 'rowStart=200')
                 && str_contains($url, 'timestampStart=2026-06-07T15%3A00%3A00%2B00%3A00')
+                && str_contains($url, 'event='.urlencode(Event::buildCanonicalSlug(2026, null)))
                 && !str_contains($url, 'timestamp=')
                 && !str_contains($url, 'page_token')
                 && $request->hasHeader('Authorization');
@@ -124,12 +125,12 @@ class SourceAdapterMappingTest extends TestCase
          $this->assertCount($expectedCount, $page->records);
 
          Http::assertSent(function ($request) {
-            return str_contains($request->url(), 'event=event-2');
+            return str_contains($request->url(), 'event='.urlencode(Event::buildCanonicalSlug(2026, null)));
         });
 
          $first = $page->records[0];
          $this->assertSame('8a7d6495-e814-4e33-be8c-45d42132dcf9', $first->sourceGuid);
-        $this->assertSame('Megadiverse: The Flora and Mycota of Venezuela (Part 6)', $first->center);
+        $this->assertSame('DigiVol', $first->center);
         $this->assertSame('Megadiverse: The Flora and Mycota of Venezuela (Part 6)', $first->project);
         $this->assertSame(1.0, $first->workUnit);
         $this->assertSame(1, $first->rawCount);

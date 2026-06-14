@@ -118,6 +118,7 @@ task('deploy', [
 
     // Phase 4: Database & Updates
     'artisan:migrate',         // Run database migrations
+    'artisan:update-queries',  // Run optional one-off data updates (safe no-op when empty)
 
     // Phase 5: Cache Optimization
     'artisan:optimize:clear',  // Clear all Laravel caches
@@ -130,6 +131,8 @@ task('deploy', [
     'artisan:filament:optimize',   // Optimize Filament resources and assets
 
     // Phase 7: Domain-Specific Supervisor Management
+    'supervisor:ensure-log-dir',    // Ensure log directory exists first
+    'supervisor:generate-config',  // Generate supervisor config from template
     'supervisor:reload', // Update configs only
     'artisan:queue:restart',
 
