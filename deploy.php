@@ -118,6 +118,7 @@ task('deploy', [
 
     // Phase 4: Database & Updates
     'artisan:migrate',         // Run database migrations
+    'artisan:update-queries',  // Run optional one-off data updates (safe no-op when empty)
 
     // Phase 5: Cache Optimization
     'artisan:optimize:clear',  // Clear all Laravel caches

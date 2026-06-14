@@ -7,15 +7,24 @@ use App\Models\Source;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Spatie\ResponseCache\Facades\ResponseCache;
 use Tests\TestCase;
 
 class ArchivedChartResponseCacheTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        ResponseCache::clear();
+    }
+
     protected function tearDown(): void
     {
         Carbon::setTestNow();
+        ResponseCache::clear();
 
         parent::tearDown();
     }
@@ -132,5 +141,3 @@ class ArchivedChartResponseCacheTest extends TestCase
         $this->assertNotSame($firstResponse->json('meta.generated_at'), $secondResponse->json('meta.generated_at'));
     }
 }
-
-

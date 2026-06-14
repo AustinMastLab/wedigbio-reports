@@ -1,7 +1,7 @@
 {{-- Event header --}}
 <div class="mb-8">
     <div class="mb-1 flex items-center gap-3">
-        <h1 class="text-3xl font-bold text-slate-900 dark:text-white">{{ $event->name }}</h1>
+        <h1 class="text-3xl font-bold text-slate-900 dark:text-white">{{ $event->display_name }}</h1>
         @if ($event->is_live)
             @include('events.partials.ui.status-badge', [
                 'text' => 'Live',

@@ -1,5 +1,5 @@
 @php
-    $eventTitle = trim('WeDigBio ' . $event->year . ' ' . ucfirst((string) ($event->season ?? '')));
+    $eventTitle = $event->display_name;
 @endphp
 
 <div class="card-dark hover:border-amber-400/40">
@@ -32,4 +32,3 @@
         <a href="{{ route('events.show', $event) }}" class="btn-primary">View Stats</a>
     </div>
 </div>
-

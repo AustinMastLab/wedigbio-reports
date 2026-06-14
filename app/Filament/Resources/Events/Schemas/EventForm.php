@@ -19,15 +19,16 @@ namespace App\Filament\Resources\Events\Schemas;
 
 use App\Models\Event;
 use Carbon\CarbonImmutable;
+use Closure;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
+use Illuminate\Database\Eloquent\Model;
 
 class EventForm
 {
@@ -38,31 +39,56 @@ class EventForm
                 Section::make('Event Details')
                     ->columns(2)
                     ->schema([
-                        TextInput::make('name')
-                            ->required()
-                            ->maxLength(255)
-                            ->live(onBlur: true)
-                            ->afterStateUpdated(fn ($state, $set) => $set('slug', Str::slug($state)))
-                            ->columnSpanFull(),
-                        TextInput::make('slug')
-                            ->required()
-                            ->maxLength(255)
-                            ->unique(ignoreRecord: true),
-                        TextInput::make('display_alias')
-                            ->maxLength(255)
-                            ->helperText('Optional public display alias (e.g. "2020" for "2020-lite")'),
                         TextInput::make('year')
                             ->required()
                             ->numeric()
                             ->minValue(2000)
-                            ->maxValue(2100),
+                            ->maxValue(2100)
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function ($state, callable $set, callable $get): void {
+                                $set('slug', Event::buildCanonicalSlug($state, $get('season')));
+                            }),
                         Select::make('season')
                             ->options([
                                 Event::SEASON_SPRING => 'Spring',
                                 Event::SEASON_FALL => 'Fall',
                             ])
+                            ->required()
                             ->placeholder('Select a season')
-                            ->native(false),
+                            ->native(false)
+                            ->live()
+                            ->rules(fn (Get $get, ?Model $record): array => [
+                                function ($attribute, $value, Closure $fail) use ($get, $record) {
+                                    $year = $get('year');
+                                    if ($year === null || $year === '' || $value === null || $value === '') {
+                                        return;
+                                    }
+
+                                    $existsQuery = Event::query()
+                                        ->where('year', (int) $year)
+                                        ->where('season', (string) $value);
+
+                                    if ($record !== null) {
+                                        $existsQuery->whereKeyNot($record->getKey());
+                                    }
+
+                                    if ($existsQuery->exists()) {
+                                        $fail('An event already exists for this year and season.');
+                                    }
+                                },
+                            ])
+                            ->afterStateUpdated(function ($state, callable $set, callable $get): void {
+                                $set('slug', Event::buildCanonicalSlug($get('year'), $state));
+                            }),
+                        TextInput::make('slug')
+                            ->required()
+                            ->readOnly()
+                            ->helperText('Automatically generated from WeDigBio + Year + Season when the event is saved.')
+                            ->maxLength(255)
+                            ->unique(ignoreRecord: true),
+                        TextInput::make('display_alias')
+                            ->maxLength(255)
+                            ->helperText('Optional label override shown in lists and views'),
                     ]),
 
                 Section::make('Event Window')
@@ -75,7 +101,7 @@ class EventForm
                             ->timezone('Pacific/Tongatapu')
                             ->native(false)
                             ->seconds(false)
-                            ->displayFormat('d.m.Y H:i')
+                            ->displayFormat('Y-m-d H:i')
                             ->format('Y-m-d H:i:s')
                             ->dehydrated(false)
                             ->live(onBlur: true)
@@ -89,7 +115,7 @@ class EventForm
                             ->timezone('Pacific/Tongatapu')
                             ->native(false)
                             ->seconds(false)
-                            ->displayFormat('d.m.Y H:i')
+                            ->displayFormat('Y-m-d H:i')
                             ->format('Y-m-d H:i:s')
                             ->dehydrated(false)
                             ->live(onBlur: true)
@@ -102,18 +128,70 @@ class EventForm
                             ->required()
                             ->native(false)
                             ->seconds(false)
-                            ->displayFormat('d.m.Y H:i')
+                            ->displayFormat('Y-m-d H:i')
                             ->format('Y-m-d H:i:s')
-                            ->timezone('UTC'),
+                            ->timezone('UTC')
+                            ->rules(fn (Get $get): array => [
+                                function ($attribute, $value, Closure $fail) use ($get) {
+                                    if ($value === null || $value === '') {
+                                        return;
+                                    }
+                                    $year = $get('year');
+                                    if ($year === null || $year === '') {
+                                        return;
+                                    }
+                                    try {
+                                        $startYear = CarbonImmutable::parse($value, 'UTC')->year;
+                                    } catch (\Throwable) {
+                                        return;
+                                    }
+                                    if ($startYear !== (int) $year) {
+                                        $fail("Start Date year ({$startYear}) must match the Event Year ({$year}).");
+                                    }
+                                },
+                            ]),
                         DateTimePicker::make('ends_at')
                             ->label('End Date Time (UTC)')
                             ->required()
                             ->native(false)
                             ->seconds(false)
-                            ->displayFormat('d.m.Y H:i')
+                            ->displayFormat('Y-m-d H:i')
                             ->format('Y-m-d H:i:s')
                             ->timezone('UTC')
-                            ->after('starts_at'),
+                            ->after('starts_at')
+                            ->rules(fn (Get $get): array => [
+                                function ($attribute, $value, Closure $fail) use ($get) {
+                                    if ($value === null || $value === '') {
+                                        return;
+                                    }
+                                    $year     = $get('year');
+                                    $startsAt = $get('starts_at');
+                                    // Must match the Year field
+                                    if ($year !== null && $year !== '') {
+                                        try {
+                                            $endYear = CarbonImmutable::parse($value, 'UTC')->year;
+                                        } catch (\Throwable) {
+                                            return;
+                                        }
+                                        if ($endYear !== (int) $year) {
+                                            $fail("End Date year ({$endYear}) must match the Event Year ({$year}).");
+                                            return;
+                                        }
+                                    }
+                                    // Must be within the same year as Start Date
+                                    if ($startsAt !== null && $startsAt !== '') {
+                                        try {
+                                            $startYear = CarbonImmutable::parse($startsAt, 'UTC')->year;
+                                            $endYear   = CarbonImmutable::parse($value, 'UTC')->year;
+                                        } catch (\Throwable) {
+                                            return;
+                                        }
+                                        if ($endYear !== $startYear) {
+                                            $fail("End Date ({$endYear}) must be in the same year as Start Date ({$startYear}).");
+                                        }
+                                    }
+                                },
+                            ]),
                     ]),
 
                 Section::make('Visibility')
@@ -123,18 +201,16 @@ class EventForm
                             ->helperText('Show on public event list'),
                         Toggle::make('is_live')
                             ->helperText('Enable live chart reload for this event')
-                            ->rules([
-                                function ($attribute, $value, $fail) {
-                                    // If trying to set is_live=true, check if another live event exists
+                            ->rules(fn (Get $get, ?Model $record): array => [
+                                function ($attribute, $value, Closure $fail) use ($record) {
                                     if ($value === true) {
-                                        // Get the current record ID if editing (to exclude from check)
-                                        $recordId = optional($this->livewire?->data['record'] ?? null)?->id;
+                                        $liveExistsQuery = Event::where('is_live', true);
 
-                                        $liveExists = Event::where('is_live', true)
-                                            ->when($recordId, fn ($q) => $q->whereNot('id', $recordId))
-                                            ->exists();
+                                        if ($record !== null) {
+                                            $liveExistsQuery->whereKeyNot($record->getKey());
+                                        }
 
-                                        if ($liveExists) {
+                                        if ($liveExistsQuery->exists()) {
                                             $fail('Only one event can be marked as live at a time. Please disable the existing live event first.');
                                         }
                                     }
@@ -161,6 +237,12 @@ class EventForm
                             ->columnSpanFull(),
                     ]),
             ]);
+    }
+
+
+    private static function buildSlug(mixed $year, mixed $season): string
+    {
+        return Event::buildCanonicalSlug($year, $season);
     }
 
     private static function parseTongaToUtc(mixed $value): ?CarbonImmutable

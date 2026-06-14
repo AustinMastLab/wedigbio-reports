@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    @include('events.partials.embed-head', ['title' => $chartTitle . ' — ' . $event->name])
+    @include('events.partials.embed-head', ['title' => $chartTitle . ' — ' . $event->display_name])
 </head>
 <body class="antialiased bg-slate-50 text-slate-900">
 
 <div id="embed-chart-root"
     data-event-slug="{{ $event->slug }}"
-    data-event-name="{{ $event->name }}"
+    data-event-name="{{ $event->display_name }}"
     data-chart-type="{{ $chartType }}"
     data-is-live="{{ $event->is_live ? '1' : '0' }}"
     data-has-data="{{ $hasData ? '1' : '0' }}"

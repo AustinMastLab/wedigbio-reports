@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', $event->name . ' — WeDigBio')
+@section('title', $event->display_name . ' — WeDigBio')
 
 
 @section('content')

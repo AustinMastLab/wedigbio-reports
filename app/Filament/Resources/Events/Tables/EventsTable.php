@@ -38,10 +38,16 @@ class EventsTable
             ->defaultSort('starts_at', 'desc')
             ->recordUrl(fn (Event $record): string => EventResource::getUrl('view', ['record' => $record]))
             ->columns([
-                // ...existing columns...
-                TextColumn::make('name')
-                    ->searchable()
-                    ->sortable()
+                TextColumn::make('display_name')
+                    ->label('Name')
+                    ->searchable(query: function ($query, string $search): void {
+                        $query->where(function ($subQuery) use ($search): void {
+                            $subQuery
+                                ->where('display_alias', 'like', "%{$search}%")
+                                ->orWhere('slug', 'like', "%{$search}%");
+                        });
+                    })
+                    ->sortable(query: fn ($query, string $direction) => $query->orderBy('slug', $direction))
                     ->weight('bold'),
                 TextColumn::make('year')
                     ->sortable(),

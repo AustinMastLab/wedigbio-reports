@@ -214,6 +214,16 @@ task('supervisor:ensure-log-dir', function () {
 });
 
 /**
+ * Run one-off data update queries after migrations.
+ * Safe no-op when update:queries has no configured entries.
+ */
+desc('Run deploy update queries');
+task('artisan:update-queries', function () {
+    cd('{{release_or_current_path}}');
+    run('php artisan update:queries --ansi');
+});
+
+/**
  * Publish Filament assets
  */
 desc('Publish Filament assets');
@@ -276,4 +286,3 @@ task('supervisor:generate-config', function () {
     writeln("   Directory: {$directory}");
     writeln("   Log file: {$logFile}");
 })->once();
-

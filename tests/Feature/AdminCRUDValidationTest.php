@@ -45,11 +45,11 @@ class AdminCRUDValidationTest extends TestCase
             'notes' => 'Test event for admin validation',
         ]);
 
-        $this->assertDatabaseHas('events', ['slug' => '2026-spring-test']);
+        $this->assertDatabaseHas('events', ['slug' => 'wedigbio-2026-spring']);
 
         // Read
-        $retrieved = Event::where('slug', '2026-spring-test')->firstOrFail();
-        $this->assertSame('WeDigBio 2026 Spring', $retrieved->name);
+        $retrieved = Event::where('slug', 'wedigbio-2026-spring')->firstOrFail();
+        $this->assertSame('WeDigBio 2026 Spring', $retrieved->display_name);
         $this->assertTrue($retrieved->is_live);
 
         // Attach sources (simulate admin event-source relationship)
@@ -80,13 +80,12 @@ class AdminCRUDValidationTest extends TestCase
 
         // Update
         $event->update([
-            'name' => 'WeDigBio 2026 Spring (Updated)',
+            'slug' => 'wedigbio-2026-spring-updated',
             'is_live' => false,
         ]);
 
         $this->assertDatabaseHas('events', [
-            'slug' => '2026-spring-test',
-            'name' => 'WeDigBio 2026 Spring (Updated)',
+            'slug' => 'wedigbio-2026-spring',
             'is_live' => false,
         ]);
 
@@ -353,13 +352,13 @@ class AdminCRUDValidationTest extends TestCase
 
         // Editing the same event to keep is_live=true should be allowed
         $liveEvent->update([
-            'name' => 'Updated Live Event Name',
+            'slug' => 'wedigbio-2026-spring-updated-live',
             'is_live' => true,
         ]);
 
         $this->assertDatabaseHas('events', [
             'id' => $liveEvent->id,
-            'name' => 'Updated Live Event Name',
+            'slug' => 'wedigbio-2026',
             'is_live' => true,
         ]);
     }

@@ -23,7 +23,6 @@ use App\Models\Event;
 use App\Models\Source;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use RuntimeException;
 
 class HistoricalTranscriptionImporter
@@ -249,11 +248,11 @@ class HistoricalTranscriptionImporter
         [$year, $season, $displayAlias] = $this->deriveEventMetadata($slug);
 
         return Event::updateOrCreate(
-            ['slug' => $slug],
             [
-                'name' => $this->formatEventName($slug),
                 'year' => $year,
                 'season' => $season,
+            ],
+            [
                 'starts_at' => CarbonImmutable::parse(sprintf('%04d-01-01 00:00:00', $year), 'UTC'),
                 'ends_at' => CarbonImmutable::parse(sprintf('%04d-12-31 23:59:59', $year), 'UTC'),
                 'is_public' => true,
@@ -521,7 +520,7 @@ class HistoricalTranscriptionImporter
         }
 
 
-        return is_string($project) && $project !== '' ? $project : ($event->name ?: $event->slug);
+        return is_string($project) && $project !== '' ? $project : ($event->display_name ?: $event->slug);
     }
 
     private function sourceLabelForSlug(string $slug): ?string
@@ -632,12 +631,6 @@ class HistoricalTranscriptionImporter
         return [$year, $season, $normalizedSuffix === 'lite' ? (string) $year : null];
     }
 
-    private function formatEventName(string $slug): string
-    {
-        $pretty = str_replace('-', ' ', $slug);
-
-        return 'WeDigBio ' . Str::headline($pretty);
-    }
 
     private function normalizeHeader(string $header): string
     {
