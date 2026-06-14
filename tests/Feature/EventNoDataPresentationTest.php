@@ -120,7 +120,7 @@ class EventNoDataPresentationTest extends TestCase
         $response = $this->get(route('events.show', $event));
 
         $response->assertOk();
-        $response->assertSee('This year is still listed for historical completeness, but chart data was not available from source feeds during import.');
+        $response->assertSee('This year is still listed for historical completeness, but chart data was not available.');
         $response->assertDontSee('This live event has started, but no transcription records have arrived from enabled source feeds yet.');
     }
 
@@ -141,7 +141,7 @@ class EventNoDataPresentationTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('This live event has started, but no transcription records have arrived from enabled source feeds yet.');
-        $response->assertDontSee('This year is still listed for historical completeness, but chart data was not available from source feeds during import.');
+        $response->assertDontSee('This year is still listed for historical completeness, but chart data was not available.');
     }
 
     public function test_event_show_displays_countdown_copy_for_future_live_event_without_records(): void

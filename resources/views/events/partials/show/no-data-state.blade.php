@@ -13,7 +13,7 @@
             <p id="live-event-started-message" class="text-sm text-amber-700/90 dark:text-amber-100/90">This live event has started, but no transcription records have arrived from enabled source feeds yet.</p>
         @endif
     @else
-        <p class="text-sm text-amber-700/90 dark:text-amber-100/90">This year is still listed for historical completeness, but chart data was not available from source feeds during import.</p>
+        <p class="text-sm text-amber-700/90 dark:text-amber-100/90">This year is still listed for historical completeness, but chart data was not available.</p>
     @endif
     @if ($event->is_live)
         <p id="live-event-refresh-note" @class([
