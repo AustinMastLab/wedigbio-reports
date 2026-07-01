@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Event;
 use App\Jobs\PollSourcesJob;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
@@ -17,7 +18,15 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withCommands()
     ->withSchedule(function (Schedule $schedule): void {
         // Poll every minute (jobs fan out per event/source pair)
-        $schedule->job(new PollSourcesJob)->everyMinute()->withoutOverlapping();
+        $schedule->job(new PollSourcesJob)
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->when(static fn (): bool => Event::query()
+                ->where('is_archived', false)
+                ->where('is_live', true)
+                ->where('starts_at', '<=', now())
+                ->where('ends_at', '>=', now())
+                ->exists());
 
         // Hourly safety net — re-aggregate all active events even if ingestion had no new pages
         $schedule->command('ingest:aggregate')->hourly()->withoutOverlapping();
