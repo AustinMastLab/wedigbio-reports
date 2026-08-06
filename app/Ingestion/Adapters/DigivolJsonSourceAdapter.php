@@ -31,6 +31,17 @@ class DigivolJsonSourceAdapter implements SourceAdapter
 {
     private const DEFAULT_ROWS = 100;
 
+    private function weightFieldValue(array $row, ?string $weightField): mixed
+    {
+        if (filled($weightField)) {
+            return Arr::get($row, $weightField);
+        }
+
+        return Arr::get($row, 'work_unit')
+            ?? Arr::get($row, 'workUnit')
+            ?? Arr::get($row, 'discretionaryState.workUnit');
+    }
+
     public function fetchPage(
         Event $event,
         Source $source,
@@ -98,10 +109,7 @@ class DigivolJsonSourceAdapter implements SourceAdapter
                 ?? Arr::get($row, 'subject')
                 ?? Arr::get($row, 'task.name');
 
-            $workUnit = Arr::get($row, 'work_unit')
-                ?? Arr::get($row, 'workUnit')
-                ?? Arr::get($row, 'discretionaryState.workUnit')
-                ?? 1;
+            $workUnit = $this->weightFieldValue($row, $source->weight_field) ?? 1;
 
             $rawCount = Arr::get($row, 'raw_count')
                 ?? Arr::get($row, 'rawCount')

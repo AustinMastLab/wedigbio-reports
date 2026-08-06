@@ -19,6 +19,7 @@ namespace Tests\Unit\Ingestion;
 
 use App\Ingestion\Adapters\BiospexJsonSourceAdapter;
 use App\Ingestion\Adapters\DigivolJsonSourceAdapter;
+use App\Ingestion\Adapters\HttpJsonSourceAdapter;
 use App\Models\Event;
 use App\Models\Source;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -56,8 +57,18 @@ class SourceAdapterMappingTest extends TestCase
             'is_active' => true,
         ]);
 
-        $fixture = json_decode(file_get_contents(base_path('biospex.json')), true, 512, JSON_THROW_ON_ERROR);
-        $expectedCount = count($fixture['items'] ?? []);
+        $fixture = [
+            'items' => [
+                [
+                    'project' => 'Notes From Nature',
+                    'description' => 'first',
+                    'guid' => 'e1c547ae-636d-4f9d-8dfc-02ef990472dc',
+                    'timestamp' => '2026-03-09T03:36:12.000000Z',
+                    'discretionaryState' => ['workUnit' => 0.5],
+                ],
+            ],
+        ];
+        $expectedCount = count($fixture['items']);
 
         Http::fake([
             'https://example.test/biospex*' => Http::response($fixture),
@@ -84,7 +95,7 @@ class SourceAdapterMappingTest extends TestCase
         $this->assertSame('e1c547ae-636d-4f9d-8dfc-02ef990472dc', $first->sourceGuid);
         $this->assertSame('Notes From Nature', $first->center);
         $this->assertSame('Notes From Nature', $first->project);
-        $this->assertSame(1.0, $first->workUnit);
+        $this->assertSame(0.5, $first->workUnit);
         $this->assertSame(1, $first->rawCount);
         $this->assertSame('2026-03-09T03:36:12+00:00', $first->timestampUtc->toIso8601String());
 
@@ -113,8 +124,17 @@ class SourceAdapterMappingTest extends TestCase
             'is_active' => true,
         ]);
 
-        $fixture = json_decode(file_get_contents(base_path('digivol.json')), true, 512, JSON_THROW_ON_ERROR);
-        $expectedCount = count($fixture['items'] ?? []);
+        $fixture = [
+            'items' => [
+                [
+                    'id' => '8a7d6495-e814-4e33-be8c-45d42132dcf9',
+                    'project' => 'Megadiverse: The Flora and Mycota of Venezuela (Part 6)',
+                    'description' => 'first',
+                    'timestamp' => '2026-06-07T15:15:34Z',
+                ],
+            ],
+        ];
+        $expectedCount = count($fixture['items']);
 
         Http::fake([
             'https://example.test/digivol*' => Http::response($fixture),
@@ -167,5 +187,47 @@ class SourceAdapterMappingTest extends TestCase
 
         $this->assertCount(0, $page->records);
         $this->assertNull($page->nextPageToken);
+    }
+
+    public function test_http_json_adapter_uses_configured_weight_field_path(): void
+    {
+        $event = Event::create([
+            'name' => 'Event',
+            'slug' => 'event-4',
+            'year' => 2026,
+            'starts_at' => now()->subDay(),
+            'ends_at' => now()->addDay(),
+            'is_public' => true,
+            'is_live' => true,
+            'is_archived' => false,
+        ]);
+
+        $source = Source::create([
+            'name' => 'Weighted API',
+            'slug' => 'weighted-api',
+            'base_url' => 'https://example.test/weighted',
+            'adapter_type' => 'api_json',
+            'supports_weighting' => true,
+            'weight_field' => 'meta.weight',
+            'is_active' => true,
+        ]);
+
+        Http::fake([
+            'https://example.test/weighted*' => Http::response([
+                'data' => [
+                    [
+                        'guid' => 'w-1',
+                        'center' => 'Center W',
+                        'timestamp_utc' => '2026-06-07T10:00:00Z',
+                        'meta' => ['weight' => 2.75],
+                    ],
+                ],
+            ]),
+        ]);
+
+        $page = app(HttpJsonSourceAdapter::class)->fetchPage($event, $source);
+
+        $this->assertCount(1, $page->records);
+        $this->assertSame(2.75, $page->records[0]->workUnit);
     }
 }

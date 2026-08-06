@@ -29,6 +29,15 @@ use Illuminate\Support\Facades\Http;
 
 class HttpJsonSourceAdapter implements SourceAdapter
 {
+    private function weightFieldValue(array $row, ?string $weightField): mixed
+    {
+        if (filled($weightField)) {
+            return Arr::get($row, $weightField);
+        }
+
+        return Arr::get($row, 'work_unit') ?? Arr::get($row, 'workUnit');
+    }
+
     public function fetchPage(
         Event $event,
         Source $source,
@@ -80,7 +89,7 @@ class HttpJsonSourceAdapter implements SourceAdapter
                 project: Arr::get($row, 'project'),
                 description: Arr::get($row, 'description'),
                 timestampUtc: CarbonImmutable::parse((string) $timestamp)->utc(),
-                workUnit: (float) (Arr::get($row, 'work_unit') ?? Arr::get($row, 'workUnit') ?? 1),
+                workUnit: (float) ($this->weightFieldValue($row, $source->weight_field) ?? 1),
                 rawCount: (int) (Arr::get($row, 'raw_count') ?? Arr::get($row, 'rawCount') ?? 1),
                 payload: $row,
             );

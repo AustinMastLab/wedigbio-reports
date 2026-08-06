@@ -27,6 +27,7 @@ class LegacySourcesSeeder extends Seeder
                 'base_url' => 'http://lesherbonautes.mnhn.fr/contributions/interval/json',
                 'adapter_type' => 'api_json',
                 'supports_weighting' => true,
+                'weight_field' => 'discretionaryState.workUnit',
                 'is_active' => false,
                 'notes' => 'Legacy WeDigBio endpoint from historical R scripts.',
                 'auth_type' => null,
@@ -85,6 +86,7 @@ class LegacySourcesSeeder extends Seeder
             $model->base_url = $model->base_url ?: $source['base_url'];
             $model->adapter_type = $model->adapter_type ?: $source['adapter_type'];
             $model->supports_weighting = (bool) ($model->exists ? $model->supports_weighting : $source['supports_weighting']);
+            $model->weight_field = $model->weight_field ?: ($source['weight_field'] ?? null);
             $model->is_active = (bool) ($model->exists ? $model->is_active : $source['is_active']);
             $model->notes = $model->notes ?: $source['notes'];
             $model->auth_type = $model->auth_type ?: $source['auth_type'];
