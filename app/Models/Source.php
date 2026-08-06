@@ -26,7 +26,7 @@ class Source extends Model
     protected $fillable = [
         'name', 'slug', 'base_url', 'adapter_type',
         'auth_type', 'auth_config',
-        'supports_weighting', 'is_active', 'notes',
+        'supports_weighting', 'weight_field', 'is_active', 'notes',
     ];
 
     protected $casts = [

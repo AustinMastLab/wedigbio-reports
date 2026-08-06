@@ -32,6 +32,17 @@ class BiospexJsonSourceAdapter implements SourceAdapter
 {
     private const DEFAULT_ROWS = 100;
 
+    private function weightFieldValue(array $row, ?string $weightField): mixed
+    {
+        if (filled($weightField)) {
+            return Arr::get($row, $weightField);
+        }
+
+        return Arr::get($row, 'discretionaryState.workUnit')
+            ?? Arr::get($row, 'discretionarystate_workunit')
+            ?? 1;
+    }
+
     public function fetchPage(
         Event $event,
         Source $source,
@@ -85,9 +96,7 @@ class BiospexJsonSourceAdapter implements SourceAdapter
 
             $center = (string) (Arr::get($row, 'project') ?: $source->name ?: $source->slug);
             $project = Arr::get($row, 'project');
-            $workUnit = Arr::get($row, 'discretionaryState.workUnit')
-                ?? Arr::get($row, 'discretionarystate_workunit')
-                ?? 1;
+            $workUnit = $this->weightFieldValue($row, $source->weight_field) ?? 1;
 
             $records[] = new NormalizedRecord(
                 sourceGuid: (string) $guid,

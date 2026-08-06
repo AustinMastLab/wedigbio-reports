@@ -106,7 +106,14 @@ class SourceForm
                     ->columns(2)
                     ->schema([
                         Toggle::make('supports_weighting')
-                            ->helperText('Source sends fractional work_unit values (e.g. Les herbonautes)'),
+                            ->helperText('Source sends fractional work_unit values (e.g. Les herbonautes)')
+                            ->live(),
+                        TextInput::make('weight_field')
+                            ->label('Weight field name')
+                            ->placeholder('work_unit or discretionaryState.workUnit')
+                            ->helperText('JSON field path used when weighting is enabled')
+                            ->visible(fn ($get) => (bool) $get('supports_weighting'))
+                            ->columnSpanFull(),
                         Toggle::make('is_active')
                             ->helperText('Controls live ingestion polling for this API; historical data remains even when disabled'),
                     ]),
