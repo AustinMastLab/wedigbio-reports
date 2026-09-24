@@ -21,14 +21,17 @@ use App\Ingestion\SourceAdapterManager;
 use App\Jobs\AggregateHourlyJob;
 use App\Jobs\IngestPageJob;
 use App\Jobs\PollSourcesJob;
+use App\Mail\IngestionOutageAlert;
 use App\Models\ChartAggregateHourly;
 use App\Models\Event;
 use App\Models\Source;
 use App\Models\SourceCheckpoint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class IngestionJobsTest extends TestCase
@@ -138,6 +141,54 @@ class IngestionJobsTest extends TestCase
         });
     }
 
+    public function test_ingest_page_job_queues_an_alert_after_an_hour_of_api_failures(): void
+    {
+        Mail::fake();
+        config(['services.ingestion.alert_email' => 'alerts@example.test']);
+
+        $event = Event::create([
+            'name' => 'Alert Event',
+            'slug' => 'alert-event',
+            'year' => 2028,
+            'starts_at' => now()->subDay(),
+            'ends_at' => now()->addDay(),
+            'is_public' => true,
+            'is_live' => true,
+            'is_archived' => false,
+        ]);
+
+        $source = Source::create([
+            'name' => 'Unavailable API',
+            'slug' => 'unavailable-api',
+            'base_url' => 'https://example.test/unavailable',
+            'adapter_type' => 'http_json',
+            'is_active' => true,
+        ]);
+
+        $checkpoint = SourceCheckpoint::create([
+            'event_id' => $event->id,
+            'source_id' => $source->id,
+            'first_failed_at' => now()->subHour(),
+            'last_status' => 'error',
+        ]);
+
+        Http::fake([
+            'https://example.test/unavailable*' => Http::response([], 503),
+        ]);
+
+        $this->expectException(RequestException::class);
+
+        try {
+            (new IngestPageJob($event->id, $source->id))->handle(app(SourceAdapterManager::class));
+        } finally {
+            Mail::assertQueued(IngestionOutageAlert::class, function (IngestionOutageAlert $mail) {
+                return $mail->hasTo('alerts@example.test');
+            });
+
+            $this->assertNotNull($checkpoint->fresh()->failure_alert_sent_at);
+        }
+    }
+
     public function test_poll_sources_job_only_dispatches_for_live_events_within_time_window(): void
     {
         Bus::fake();
@@ -235,8 +286,8 @@ class IngestionJobsTest extends TestCase
 
         // Three records: two in the same hour/center bucket, one in a different hour
         $base = ['event_id' => $event->id, 'source_id' => $source->id,
-                 'project' => null, 'description' => null, 'payload_json' => null,
-                 'created_at' => now(), 'updated_at' => now()];
+            'project' => null, 'description' => null, 'payload_json' => null,
+            'created_at' => now(), 'updated_at' => now()];
 
         DB::table('transcription_records')->insert([
             array_merge($base, ['source_guid' => 'g1', 'dedupe_key' => 'k1', 'center' => 'NHML',
@@ -270,4 +321,3 @@ class IngestionJobsTest extends TestCase
         $this->assertCount(2, ChartAggregateHourly::where('event_id', $event->id)->get());
     }
 }
-
