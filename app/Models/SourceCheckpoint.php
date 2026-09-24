@@ -26,11 +26,14 @@ class SourceCheckpoint extends Model
         'event_id', 'source_id',
         'last_seen_timestamp', 'last_page_token',
         'last_run_at', 'last_status', 'last_error',
+        'first_failed_at', 'failure_alert_sent_at',
     ];
 
     protected $casts = [
         'last_seen_timestamp' => 'datetime',
-        'last_run_at'         => 'datetime',
+        'last_run_at' => 'datetime',
+        'first_failed_at' => 'datetime',
+        'failure_alert_sent_at' => 'datetime',
     ];
 
     public function event(): BelongsTo

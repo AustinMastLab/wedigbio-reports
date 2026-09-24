@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 namespace App\Jobs;
 
 use App\Ingestion\SourceAdapterManager;
+use App\Mail\IngestionOutageAlert;
 use App\Models\Event;
 use App\Models\Source;
 use App\Models\SourceCheckpoint;
@@ -26,6 +27,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Throwable;
 
 class IngestPageJob implements ShouldQueue
@@ -54,7 +56,7 @@ class IngestPageJob implements ShouldQueue
             ['last_status' => 'pending'],
         );
 
-        Log::info("IngestPageJob started", [
+        Log::info('IngestPageJob started', [
             'event_slug' => $event->slug,
             'source_slug' => $source->slug,
             'page_token' => $this->pageToken ?? $checkpoint->last_page_token,
@@ -71,7 +73,7 @@ class IngestPageJob implements ShouldQueue
                     since: $checkpoint->last_seen_timestamp,
                 );
 
-            Log::info("IngestPageJob fetched page", [
+            Log::info('IngestPageJob fetched page', [
                 'event_slug' => $event->slug,
                 'source_slug' => $source->slug,
                 'record_count' => count($page->records),
@@ -97,7 +99,7 @@ class IngestPageJob implements ShouldQueue
                     ['center', 'project', 'description', 'timestamp_utc', 'work_unit', 'raw_count', 'payload_json', 'updated_at'],
                 );
 
-                Log::info("IngestPageJob upserted records", [
+                Log::info('IngestPageJob upserted records', [
                     'event_slug' => $event->slug,
                     'source_slug' => $source->slug,
                     'row_count' => count($rows),
@@ -110,24 +112,26 @@ class IngestPageJob implements ShouldQueue
                 'last_run_at' => now(),
                 'last_status' => 'ok',
                 'last_error' => null,
+                'first_failed_at' => null,
+                'failure_alert_sent_at' => null,
             ])->save();
 
             if (filled($page->nextPageToken)) {
-                Log::info("IngestPageJob dispatching next page", [
+                Log::info('IngestPageJob dispatching next page', [
                     'event_slug' => $event->slug,
                     'source_slug' => $source->slug,
                     'next_page_token' => $page->nextPageToken,
                 ]);
                 self::dispatch($event->id, $source->id, $page->nextPageToken);
             } else {
-                Log::info("IngestPageJob reached final page, triggering aggregation", [
+                Log::info('IngestPageJob reached final page, triggering aggregation', [
                     'event_slug' => $event->slug,
                 ]);
                 // Last page done — rebuild hourly aggregates for this event
                 AggregateHourlyJob::dispatch($event->id);
             }
         } catch (Throwable $e) {
-            Log::error("IngestPageJob failed", [
+            Log::error('IngestPageJob failed', [
                 'event_slug' => $event->slug,
                 'source_slug' => $source->slug,
                 'error' => $e->getMessage(),
@@ -137,9 +141,40 @@ class IngestPageJob implements ShouldQueue
                 'last_run_at' => now(),
                 'last_status' => 'error',
                 'last_error' => substr($e->getMessage(), 0, 2000),
+                'first_failed_at' => $checkpoint->first_failed_at ?? now(),
             ])->save();
+
+            $this->queueOutageAlert($event, $source, $checkpoint);
 
             throw $e;
         }
+    }
+
+    private function queueOutageAlert(Event $event, Source $source, SourceCheckpoint $checkpoint): void
+    {
+        $recipient = config('services.ingestion.alert_email');
+
+        if (blank($recipient)) {
+            return;
+        }
+
+        $firstFailedAt = $checkpoint->first_failed_at;
+        if ($firstFailedAt === null || $firstFailedAt->gt(now()->subHour())) {
+            return;
+        }
+
+        $claimed = SourceCheckpoint::query()
+            ->whereKey($checkpoint->id)
+            ->whereNull('failure_alert_sent_at')
+            ->update(['failure_alert_sent_at' => now()]);
+
+        if ($claimed === 0) {
+            return;
+        }
+
+        Mail::to($recipient)->queue(
+            (new IngestionOutageAlert($event, $source, $firstFailedAt))
+                ->onQueue(config('queue.connections.beanstalkd.queue', 'wedigbio-ingest')),
+        );
     }
 }

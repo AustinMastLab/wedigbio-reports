@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'ingestion' => [
+        'alert_email' => env('INGESTION_ALERT_EMAIL'),
+    ],
+
 ];
