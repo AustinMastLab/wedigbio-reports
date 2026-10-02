@@ -40,6 +40,7 @@ function initEventShowDashboard() {
             return;
         }
 
+        const daysEl = document.getElementById('live-event-countdown-days');
         const hoursEl = document.getElementById('live-event-countdown-hours');
         const minutesEl = document.getElementById('live-event-countdown-minutes');
         const startsAtIso = countdownMessage.dataset.startsAt;
@@ -63,9 +64,13 @@ function initEventShowDashboard() {
             }
 
             const totalMinutes = Math.floor(diffMs / 60000);
-            const hours = Math.floor(totalMinutes / 60);
+            const days = Math.floor(totalMinutes / 1440);
+            const hours = Math.floor((totalMinutes % 1440) / 60);
             const minutes = totalMinutes % 60;
 
+            if (daysEl) {
+                daysEl.textContent = String(days);
+            }
             if (hoursEl) {
                 hoursEl.textContent = String(hours);
             }

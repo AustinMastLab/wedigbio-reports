@@ -7,7 +7,7 @@
                 data-starts-at="{{ $event->starts_at->toIso8601String() }}"
                 class="text-sm text-amber-700/90 dark:text-amber-100/90"
             >
-                This live event will start in <strong id="live-event-countdown-hours">--</strong>h <strong id="live-event-countdown-minutes">--</strong>m.
+                This live event will start in <strong id="live-event-countdown-days">--</strong>d <strong id="live-event-countdown-hours">--</strong>h <strong id="live-event-countdown-minutes">--</strong>m.
             </p>
         @else
             <p id="live-event-started-message" class="text-sm text-amber-700/90 dark:text-amber-100/90">This live event has started, but no transcription records have arrived from enabled source feeds yet.</p>
@@ -22,4 +22,3 @@
         ])>This page will automatically check for new data every {{ max(1, (int) round(config('wedigbio.refresh.live_no_data_retry_ms', 60000) / 1000)) }} seconds.</p>
     @endif
 </div>
-
