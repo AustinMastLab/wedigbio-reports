@@ -15,6 +15,7 @@ function initEmbedChart() {
     const reloadMs = Number.parseInt(root.dataset.reloadMs ?? '900000', 10);
     const noDataReloadMs = Number.parseInt(root.dataset.noDataReloadMs ?? '60000', 10);
     const countdownMessage = document.getElementById('countdown-message');
+    const countdownDays = document.getElementById('countdown-days');
     const countdownHours = document.getElementById('countdown-hours');
     const countdownMinutes = document.getElementById('countdown-minutes');
     const noDataMessage = document.getElementById('no-data-message');
@@ -36,11 +37,16 @@ function initEmbedChart() {
 
         if (hasValidStart && diffMs > 0) {
             const totalSeconds = Math.floor(diffMs / 1000);
-            const hours = Math.floor(totalSeconds / 3600);
+            const totalMinutes = Math.floor(totalSeconds / 60);
+            const days = Math.floor(totalMinutes / 1440);
+            const hours = Math.floor((totalMinutes % 1440) / 60);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
 
             if (countdownMessage) {
                 countdownMessage.style.display = 'block';
+            }
+            if (countdownDays) {
+                countdownDays.textContent = String(days);
             }
             if (countdownHours) {
                 countdownHours.textContent = String(hours);

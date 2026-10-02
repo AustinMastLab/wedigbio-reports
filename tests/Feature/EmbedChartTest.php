@@ -126,6 +126,7 @@ class EmbedChartTest extends TestCase
 
         $response->assertOk();
         $response->assertSeeText('Event starts in');
+        $response->assertSee('id="countdown-days"', false);
     }
 
     public function test_embed_chart_passes_start_time_for_countdown(): void

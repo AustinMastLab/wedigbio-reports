@@ -162,6 +162,7 @@ class EventNoDataPresentationTest extends TestCase
         $response->assertOk();
         $response->assertSee('This live event will start in');
         $response->assertSee('id="live-event-countdown-message"', false);
+        $response->assertSee('id="live-event-countdown-days"', false);
         $response->assertDontSee('id="live-event-started-message"', false);
     }
 }
