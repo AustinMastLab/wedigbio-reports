@@ -26,12 +26,15 @@ interface SourceAdapter
 {
     /**
      * Fetch one page of normalized records from the external source.
+     *
+     * $since and $until bound the record timestamps (older and newer, inclusive)
+     * so every page of one pagination run reads the same window.
      */
     public function fetchPage(
         Event $event,
         Source $source,
         ?string $pageToken = null,
         ?CarbonInterface $since = null,
+        ?CarbonInterface $until = null,
     ): SourcePage;
 }
-

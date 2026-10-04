@@ -34,17 +34,31 @@ class IngestPageJob implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * Minutes after the last page fetch during which a run counts as in progress.
+     */
+    private const RUN_IN_PROGRESS_MINUTES = 10;
+
+    /**
+     * A job dispatched by polling has no window and opens a new run; each
+     * continuation page carries its run's window and the newest timestamp seen.
+     */
     public function __construct(
         public int $eventId,
         public int $sourceId,
         public ?string $pageToken = null,
+        public ?string $windowStart = null,
+        public ?string $windowEnd = null,
+        public ?string $latestSeen = null,
     ) {}
 
     /**
      * Fetch one source page, upsert records idempotently, then continue pagination.
      *
-     * When the final page is reached, an aggregate rebuild is dispatched for
-     * the event so chart endpoints reflect newly ingested records.
+     * Every page of a run reads the same time window, and the checkpoint only
+     * advances after the final page, so a failed or interrupted run is fetched
+     * again on the next poll. When the final page is reached, an aggregate
+     * rebuild is dispatched so chart endpoints reflect newly ingested records.
      */
     public function handle(SourceAdapterManager $adapters): void
     {
@@ -56,11 +70,36 @@ class IngestPageJob implements ShouldQueue
             ['last_status' => 'pending'],
         );
 
+        $isContinuation = $this->windowEnd !== null;
+
+        if (! $isContinuation && $this->hasRunInProgress($checkpoint)) {
+            Log::info('IngestPageJob skipped, run already in progress', [
+                'event_slug' => $event->slug,
+                'source_slug' => $source->slug,
+                'page_token' => $checkpoint->last_page_token,
+            ]);
+
+            return;
+        }
+
+        if ($isContinuation) {
+            $windowStart = $this->windowStart !== null ? CarbonImmutable::parse($this->windowStart) : null;
+            $windowEnd = CarbonImmutable::parse($this->windowEnd);
+        } else {
+            $windowStart = $checkpoint->last_seen_timestamp
+                ? CarbonImmutable::instance($checkpoint->last_seen_timestamp)
+                : null;
+            $windowEnd = $event->ends_at
+                ? CarbonImmutable::now()->min($event->ends_at)
+                : CarbonImmutable::now();
+        }
+
         Log::info('IngestPageJob started', [
             'event_slug' => $event->slug,
             'source_slug' => $source->slug,
-            'page_token' => $this->pageToken ?? $checkpoint->last_page_token,
-            'last_seen' => $checkpoint->last_seen_timestamp?->toIso8601String(),
+            'page_token' => $this->pageToken,
+            'window_start' => $windowStart?->toIso8601String(),
+            'window_end' => $windowEnd->toIso8601String(),
         ]);
 
         try {
@@ -69,8 +108,9 @@ class IngestPageJob implements ShouldQueue
                 ->fetchPage(
                     event: $event,
                     source: $source,
-                    pageToken: $this->pageToken ?? $checkpoint->last_page_token,
-                    since: $checkpoint->last_seen_timestamp,
+                    pageToken: $this->pageToken,
+                    since: $windowStart,
+                    until: $windowEnd,
                 );
 
             Log::info('IngestPageJob fetched page', [
@@ -81,9 +121,9 @@ class IngestPageJob implements ShouldQueue
             ]);
 
             $rows = [];
-            $latestSeen = $checkpoint->last_seen_timestamp
-                ? CarbonImmutable::instance($checkpoint->last_seen_timestamp)
-                : null;
+            $latestSeen = $this->latestSeen !== null
+                ? CarbonImmutable::parse($this->latestSeen)
+                : $windowStart;
 
             foreach ($page->records as $record) {
                 $rows[] = $record->toUpsertRow($event->id, $source->id);
@@ -106,23 +146,37 @@ class IngestPageJob implements ShouldQueue
                 ]);
             }
 
+            $hasNextPage = filled($page->nextPageToken);
+
             $checkpoint->fill([
-                'last_seen_timestamp' => $latestSeen,
-                'last_page_token' => $page->nextPageToken,
+                'last_page_token' => $hasNextPage ? $page->nextPageToken : null,
                 'last_run_at' => now(),
                 'last_status' => 'ok',
                 'last_error' => null,
                 'first_failed_at' => null,
                 'failure_alert_sent_at' => null,
-            ])->save();
+            ]);
 
-            if (filled($page->nextPageToken)) {
+            if (! $hasNextPage) {
+                $checkpoint->last_seen_timestamp = $latestSeen;
+            }
+
+            $checkpoint->save();
+
+            if ($hasNextPage) {
                 Log::info('IngestPageJob dispatching next page', [
                     'event_slug' => $event->slug,
                     'source_slug' => $source->slug,
                     'next_page_token' => $page->nextPageToken,
                 ]);
-                self::dispatch($event->id, $source->id, $page->nextPageToken);
+                self::dispatch(
+                    $event->id,
+                    $source->id,
+                    $page->nextPageToken,
+                    $windowStart?->toIso8601String(),
+                    $windowEnd->toIso8601String(),
+                    $latestSeen?->toIso8601String(),
+                );
             } else {
                 Log::info('IngestPageJob reached final page, triggering aggregation', [
                     'event_slug' => $event->slug,
@@ -148,6 +202,17 @@ class IngestPageJob implements ShouldQueue
 
             throw $e;
         }
+    }
+
+    /**
+     * A run is in progress while it has a next page and fetched one recently;
+     * an older unfinished run is treated as abandoned and replaced.
+     */
+    private function hasRunInProgress(SourceCheckpoint $checkpoint): bool
+    {
+        return filled($checkpoint->last_page_token)
+            && $checkpoint->last_run_at !== null
+            && $checkpoint->last_run_at->gt(now()->subMinutes(self::RUN_IN_PROGRESS_MINUTES));
     }
 
     private function queueOutageAlert(Event $event, Source $source, SourceCheckpoint $checkpoint): void

@@ -43,6 +43,7 @@ class HttpJsonSourceAdapter implements SourceAdapter
         Source $source,
         ?string $pageToken = null,
         ?CarbonInterface $since = null,
+        ?CarbonInterface $until = null,
     ): SourcePage {
         if (blank($source->base_url)) {
             return SourcePage::empty();

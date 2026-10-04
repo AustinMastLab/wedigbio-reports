@@ -108,6 +108,162 @@ class IngestionJobsTest extends TestCase
         $this->assertNotNull($checkpoint->last_seen_timestamp);
     }
 
+    public function test_ingest_page_job_reads_from_checkpoint_to_now_and_keeps_checkpoint_until_final_page(): void
+    {
+        $this->travelTo('2026-10-08 12:05:00');
+        Bus::fake([IngestPageJob::class, AggregateHourlyJob::class]);
+
+        $event = $this->createFallEvent();
+        $source = $this->createDigivolSource('digivol-first-page');
+        $checkpoint = SourceCheckpoint::create([
+            'event_id' => $event->id,
+            'source_id' => $source->id,
+            'last_seen_timestamp' => '2026-10-08 12:00:00',
+            'last_status' => 'ok',
+        ]);
+
+        $items = collect(range(1, 100))->map(fn (int $i) => [
+            'id' => "dv-{$i}",
+            'timestamp' => $i === 1 ? '2026-10-08T12:04:00Z' : '2026-10-08T12:01:00Z',
+        ])->all();
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://example.test/digivol-first-page*' => Http::response(['items' => $items]),
+        ]);
+
+        (new IngestPageJob($event->id, $source->id))->handle(app(SourceAdapterManager::class));
+
+        Http::assertSent(fn ($request) => $request['rowStart'] === 0
+            && $request['timestampStart'] === '2026-10-08T12:00:00+00:00'
+            && $request['timestampEnd'] === '2026-10-08T12:05:00+00:00');
+        Bus::assertDispatched(IngestPageJob::class, fn (IngestPageJob $job) => $job->pageToken === '100'
+            && $job->windowStart === '2026-10-08T12:00:00+00:00'
+            && $job->windowEnd === '2026-10-08T12:05:00+00:00'
+            && $job->latestSeen === '2026-10-08T12:04:00+00:00');
+        Bus::assertNotDispatched(AggregateHourlyJob::class);
+        $checkpoint->refresh();
+        $this->assertSame('2026-10-08 12:00:00', $checkpoint->last_seen_timestamp->toDateTimeString());
+        $this->assertSame('100', $checkpoint->last_page_token);
+        $this->assertSame(100, DB::table('transcription_records')->count());
+    }
+
+    public function test_ingest_page_job_final_page_advances_checkpoint_to_newest_timestamp_of_the_run(): void
+    {
+        $this->travelTo('2026-10-08 12:06:00');
+        Bus::fake([IngestPageJob::class, AggregateHourlyJob::class]);
+
+        $event = $this->createFallEvent();
+        $source = $this->createDigivolSource('digivol-final-page');
+        $checkpoint = SourceCheckpoint::create([
+            'event_id' => $event->id,
+            'source_id' => $source->id,
+            'last_seen_timestamp' => '2026-10-08 12:00:00',
+            'last_page_token' => '100',
+            'last_run_at' => now(),
+            'last_status' => 'ok',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://example.test/digivol-final-page*' => Http::response([
+                'items' => [['id' => 'dv-101', 'timestamp' => '2026-10-08T12:01:00Z']],
+            ]),
+        ]);
+
+        (new IngestPageJob(
+            $event->id,
+            $source->id,
+            '100',
+            '2026-10-08T12:00:00+00:00',
+            '2026-10-08T12:05:00+00:00',
+            '2026-10-08T12:04:00+00:00',
+        ))->handle(app(SourceAdapterManager::class));
+
+        Http::assertSent(fn ($request) => $request['rowStart'] === 100
+            && $request['timestampStart'] === '2026-10-08T12:00:00+00:00'
+            && $request['timestampEnd'] === '2026-10-08T12:05:00+00:00');
+        Bus::assertDispatched(AggregateHourlyJob::class, fn (AggregateHourlyJob $job) => $job->eventId === $event->id);
+        Bus::assertNotDispatched(IngestPageJob::class);
+        $checkpoint->refresh();
+        $this->assertSame('2026-10-08 12:04:00', $checkpoint->last_seen_timestamp->toDateTimeString());
+        $this->assertNull($checkpoint->last_page_token);
+    }
+
+    public function test_ingest_page_job_from_polling_skips_while_a_run_is_in_progress(): void
+    {
+        $this->travelTo('2026-10-08 12:06:00');
+        Bus::fake([IngestPageJob::class, AggregateHourlyJob::class]);
+
+        $event = $this->createFallEvent();
+        $source = $this->createDigivolSource('digivol-in-progress');
+        SourceCheckpoint::create([
+            'event_id' => $event->id,
+            'source_id' => $source->id,
+            'last_seen_timestamp' => '2026-10-08 12:00:00',
+            'last_page_token' => '100',
+            'last_run_at' => now()->subMinutes(2),
+            'last_status' => 'ok',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://example.test/digivol-in-progress*' => Http::response(['items' => []]),
+        ]);
+
+        (new IngestPageJob($event->id, $source->id))->handle(app(SourceAdapterManager::class));
+
+        Http::assertNothingSent();
+        Bus::assertNothingDispatched();
+    }
+
+    public function test_ingest_page_job_from_polling_restarts_an_abandoned_run_from_the_checkpoint(): void
+    {
+        $this->travelTo('2026-10-08 12:20:00');
+        Bus::fake([IngestPageJob::class, AggregateHourlyJob::class]);
+
+        $event = $this->createFallEvent();
+        $source = $this->createDigivolSource('digivol-abandoned');
+        SourceCheckpoint::create([
+            'event_id' => $event->id,
+            'source_id' => $source->id,
+            'last_seen_timestamp' => '2026-10-08 12:00:00',
+            'last_page_token' => '100',
+            'last_run_at' => now()->subMinutes(11),
+            'last_status' => 'error',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://example.test/digivol-abandoned*' => Http::response(['items' => []]),
+        ]);
+
+        (new IngestPageJob($event->id, $source->id))->handle(app(SourceAdapterManager::class));
+
+        Http::assertSent(fn ($request) => $request['rowStart'] === 0
+            && $request['timestampStart'] === '2026-10-08T12:00:00+00:00'
+            && $request['timestampEnd'] === '2026-10-08T12:20:00+00:00');
+    }
+
+    public function test_ingest_page_job_caps_the_window_at_the_event_end(): void
+    {
+        $this->travelTo('2026-10-11 11:00:30');
+        Bus::fake([IngestPageJob::class, AggregateHourlyJob::class]);
+
+        $event = $this->createFallEvent();
+        $source = $this->createDigivolSource('digivol-event-end');
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://example.test/digivol-event-end*' => Http::response(['items' => []]),
+        ]);
+
+        (new IngestPageJob($event->id, $source->id))->handle(app(SourceAdapterManager::class));
+
+        Http::assertSent(fn ($request) => $request['timestampStart'] === '2026-10-07T11:00:00+00:00'
+            && $request['timestampEnd'] === '2026-10-11T10:59:00+00:00');
+    }
+
     public function test_poll_sources_job_dispatches_ingest_page_job_for_enabled_pairs(): void
     {
         Bus::fake();
@@ -319,5 +475,29 @@ class IngestionJobsTest extends TestCase
         // Running again should upsert (not double-count)
         (new AggregateHourlyJob($event->id))->handle();
         $this->assertCount(2, ChartAggregateHourly::where('event_id', $event->id)->get());
+    }
+
+    private function createFallEvent(): Event
+    {
+        return Event::create([
+            'year' => 2026,
+            'season' => 'fall',
+            'starts_at' => '2026-10-07 11:00:00',
+            'ends_at' => '2026-10-11 10:59:00',
+            'is_public' => true,
+            'is_live' => true,
+            'is_archived' => false,
+        ]);
+    }
+
+    private function createDigivolSource(string $slug): Source
+    {
+        return Source::create([
+            'name' => 'DigiVol',
+            'slug' => $slug,
+            'base_url' => "https://example.test/{$slug}",
+            'adapter_type' => 'digivol_json',
+            'is_active' => true,
+        ]);
     }
 }

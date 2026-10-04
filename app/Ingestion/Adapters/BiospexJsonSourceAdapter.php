@@ -24,9 +24,9 @@ use App\Models\Event;
 use App\Models\Source;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Http\Client\PendingRequest;
 
 class BiospexJsonSourceAdapter implements SourceAdapter
 {
@@ -48,12 +48,12 @@ class BiospexJsonSourceAdapter implements SourceAdapter
         Source $source,
         ?string $pageToken = null,
         ?CarbonInterface $since = null,
+        ?CarbonInterface $until = null,
     ): SourcePage {
         if (blank($source->base_url)) {
             return SourcePage::empty();
         }
 
-        $timestampNow = now()->toIso8601String();
         // Parse rowStart from pageToken (should be numeric offset or null)
         $rowStart = (int) ($pageToken ?? 0);
         // Don't allow negative offset
@@ -67,8 +67,8 @@ class BiospexJsonSourceAdapter implements SourceAdapter
         $query = array_filter([
             'event' => $event->slug,
             'rowStart' => $rowStart,
-            'timestampStart' => $since?->toIso8601String(),
-            'timestampEnd' => $timestampNow,
+            'timestampStart' => ($since ?? $event->starts_at)?->toIso8601String(),
+            'timestampEnd' => ($until ?? now())->toIso8601String(),
         ], fn ($value) => filled($value));
 
         $query = array_merge($query, $this->queryAuthParams($source));
