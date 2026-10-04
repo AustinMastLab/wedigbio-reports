@@ -40,6 +40,17 @@ class IngestPageJob implements ShouldQueue
     private const RUN_IN_PROGRESS_MINUTES = 10;
 
     /**
+     * Minutes each new run reaches back before the checkpoint.
+     *
+     * Sources can publish records out of timestamp order. BioSpex stamps a Notes
+     * From Nature record in PusherClassificationJob but only saves it after another
+     * queue hop (two workers, retries up to ~9 minutes), so a record can appear
+     * after newer ones were already ingested and the checkpoint moved past it.
+     * Re-reading this overlap picks those records up; dedupe_key discards repeats.
+     */
+    private const WINDOW_OVERLAP_MINUTES = 10;
+
+    /**
      * A job dispatched by polling has no window and opens a new run; each
      * continuation page carries its run's window and the newest timestamp seen.
      */
@@ -87,8 +98,12 @@ class IngestPageJob implements ShouldQueue
             $windowEnd = CarbonImmutable::parse($this->windowEnd);
         } else {
             $windowStart = $checkpoint->last_seen_timestamp
-                ? CarbonImmutable::instance($checkpoint->last_seen_timestamp)
+                ? CarbonImmutable::instance($checkpoint->last_seen_timestamp)->subMinutes(self::WINDOW_OVERLAP_MINUTES)
                 : null;
+
+            if ($windowStart !== null && $event->starts_at !== null) {
+                $windowStart = $windowStart->max($event->starts_at);
+            }
             $windowEnd = $event->ends_at
                 ? CarbonImmutable::now()->min($event->ends_at)
                 : CarbonImmutable::now();
@@ -121,9 +136,12 @@ class IngestPageJob implements ShouldQueue
             ]);
 
             $rows = [];
-            $latestSeen = $this->latestSeen !== null
-                ? CarbonImmutable::parse($this->latestSeen)
-                : $windowStart;
+            // Start from the checkpoint, not the overlapped window start, so a run with no new records never moves it back
+            $latestSeen = match (true) {
+                $this->latestSeen !== null => CarbonImmutable::parse($this->latestSeen),
+                $checkpoint->last_seen_timestamp !== null => CarbonImmutable::instance($checkpoint->last_seen_timestamp),
+                default => null,
+            };
 
             foreach ($page->records as $record) {
                 $rows[] = $record->toUpsertRow($event->id, $source->id);

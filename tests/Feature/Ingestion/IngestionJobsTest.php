@@ -135,10 +135,10 @@ class IngestionJobsTest extends TestCase
         (new IngestPageJob($event->id, $source->id))->handle(app(SourceAdapterManager::class));
 
         Http::assertSent(fn ($request) => $request['rowStart'] === 0
-            && $request['timestampStart'] === '2026-10-08T12:00:00+00:00'
+            && $request['timestampStart'] === '2026-10-08T11:50:00+00:00'
             && $request['timestampEnd'] === '2026-10-08T12:05:00+00:00');
         Bus::assertDispatched(IngestPageJob::class, fn (IngestPageJob $job) => $job->pageToken === '100'
-            && $job->windowStart === '2026-10-08T12:00:00+00:00'
+            && $job->windowStart === '2026-10-08T11:50:00+00:00'
             && $job->windowEnd === '2026-10-08T12:05:00+00:00'
             && $job->latestSeen === '2026-10-08T12:04:00+00:00');
         Bus::assertNotDispatched(AggregateHourlyJob::class);
@@ -241,7 +241,7 @@ class IngestionJobsTest extends TestCase
         (new IngestPageJob($event->id, $source->id))->handle(app(SourceAdapterManager::class));
 
         Http::assertSent(fn ($request) => $request['rowStart'] === 0
-            && $request['timestampStart'] === '2026-10-08T12:00:00+00:00'
+            && $request['timestampStart'] === '2026-10-08T11:50:00+00:00'
             && $request['timestampEnd'] === '2026-10-08T12:20:00+00:00');
     }
 
@@ -262,6 +262,57 @@ class IngestionJobsTest extends TestCase
 
         Http::assertSent(fn ($request) => $request['timestampStart'] === '2026-10-07T11:00:00+00:00'
             && $request['timestampEnd'] === '2026-10-11T10:59:00+00:00');
+    }
+
+    public function test_ingest_page_job_overlap_ingests_late_records_without_moving_checkpoint_back(): void
+    {
+        $this->travelTo('2026-10-08 12:05:00');
+        Bus::fake([IngestPageJob::class, AggregateHourlyJob::class]);
+
+        $event = $this->createFallEvent();
+        $source = $this->createDigivolSource('digivol-late-record');
+        $checkpoint = SourceCheckpoint::create([
+            'event_id' => $event->id,
+            'source_id' => $source->id,
+            'last_seen_timestamp' => '2026-10-08 12:00:00',
+            'last_status' => 'ok',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://example.test/digivol-late-record*' => Http::response([
+                'items' => [['id' => 'dv-late', 'timestamp' => '2026-10-08T11:57:00Z']],
+            ]),
+        ]);
+
+        (new IngestPageJob($event->id, $source->id))->handle(app(SourceAdapterManager::class));
+
+        $this->assertDatabaseHas('transcription_records', ['source_guid' => 'dv-late']);
+        $this->assertSame('2026-10-08 12:00:00', $checkpoint->refresh()->last_seen_timestamp->toDateTimeString());
+    }
+
+    public function test_ingest_page_job_overlap_does_not_reach_before_the_event_start(): void
+    {
+        $this->travelTo('2026-10-07 11:06:00');
+        Bus::fake([IngestPageJob::class, AggregateHourlyJob::class]);
+
+        $event = $this->createFallEvent();
+        $source = $this->createDigivolSource('digivol-near-start');
+        SourceCheckpoint::create([
+            'event_id' => $event->id,
+            'source_id' => $source->id,
+            'last_seen_timestamp' => '2026-10-07 11:05:00',
+            'last_status' => 'ok',
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://example.test/digivol-near-start*' => Http::response(['items' => []]),
+        ]);
+
+        (new IngestPageJob($event->id, $source->id))->handle(app(SourceAdapterManager::class));
+
+        Http::assertSent(fn ($request) => $request['timestampStart'] === '2026-10-07T11:00:00+00:00');
     }
 
     public function test_poll_sources_job_dispatches_ingest_page_job_for_enabled_pairs(): void
