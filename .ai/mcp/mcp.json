@@ -3,6 +3,8 @@
     "laravel-boost": {
       "command": "wsl.exe",
       "args": [
+        "-d",
+        "ubuntu22",
         "/usr/bin/php8.5",
         "/data/web/wedigbio-reports/artisan",
         "boost:mcp"
