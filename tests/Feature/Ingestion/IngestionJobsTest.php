@@ -300,7 +300,7 @@ class IngestionJobsTest extends TestCase
     public function test_ingest_page_job_queues_an_alert_after_an_hour_of_api_failures(): void
     {
         Mail::fake();
-        config(['services.ingestion.alert_email' => 'alerts@example.test']);
+        config(['mail.from.address' => 'alerts@example.test']);
 
         $event = Event::create([
             'name' => 'Alert Event',

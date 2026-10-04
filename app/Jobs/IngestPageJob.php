@@ -217,7 +217,7 @@ class IngestPageJob implements ShouldQueue
 
     private function queueOutageAlert(Event $event, Source $source, SourceCheckpoint $checkpoint): void
     {
-        $recipient = config('services.ingestion.alert_email');
+        $recipient = config('mail.from.address');
 
         if (blank($recipient)) {
             return;
