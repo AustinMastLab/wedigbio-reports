@@ -11,10 +11,8 @@
   3. For each enabled source, dispatches `IngestPageJob` to Beanstalkd queue
   4. Workers (Supervisor-managed) consume jobs and execute ingestion/aggregation
   5. All checkpoint writes are tracked in `source_checkpoints` table for visibility
-- **Queue/Worker Deployment** (Supervisor pattern):
+- **Queue/Worker Deployment** (Supervisor pattern): templates live in `resources/supervisor/`; each deploy runs `php artisan app:deploy-files --current-path=/data/web/wedigbio-reports/current`, which renders them into shared `storage/app/supervisor/`. The server's Supervisor `[include]` reads `/data/web/wedigbio-reports/current/storage/app/supervisor/*.conf`, then the deploy runs `supervisorctl reread/update` and `queue:restart`. Check workers with:
   ```bash
-  sudo cp ops/supervisor/wedigbio-ingest.conf /etc/supervisor/conf.d/
-  sudo supervisorctl reread && sudo supervisorctl update
   sudo supervisorctl status wedigbio-ingest:*
   ```
 - **Monitoring commands**:

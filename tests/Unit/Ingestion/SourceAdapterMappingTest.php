@@ -82,12 +82,14 @@ class SourceAdapterMappingTest extends TestCase
 
         Http::assertSent(function ($request) {
             $url = $request->url();
-            // Should send rowStart=200 and timestampStart, but NOT timestamp or redundant page_token
+
+            // Should send rowStart=200 and an older-to-newer window, but NOT timestamp or redundant page_token
             return str_contains($url, 'rowStart=200')
                 && str_contains($url, 'timestampStart=2026-06-07T15%3A00%3A00%2B00%3A00')
+                && str_contains($url, 'timestampEnd=2026-06-07T16%3A00%3A00%2B00%3A00')
                 && str_contains($url, 'event='.urlencode(Event::buildCanonicalSlug(2026, null)))
-                && !str_contains($url, 'timestamp=')
-                && !str_contains($url, 'page_token')
+                && ! str_contains($url, 'timestamp=')
+                && ! str_contains($url, 'page_token')
                 && $request->hasHeader('Authorization');
         });
 
@@ -142,19 +144,98 @@ class SourceAdapterMappingTest extends TestCase
 
         $page = app(DigivolJsonSourceAdapter::class)->fetchPage($event, $source);
 
-         $this->assertCount($expectedCount, $page->records);
+        $this->assertCount($expectedCount, $page->records);
 
-         Http::assertSent(function ($request) {
+        Http::assertSent(function ($request) {
             return str_contains($request->url(), 'event='.urlencode(Event::buildCanonicalSlug(2026, null)));
         });
 
-         $first = $page->records[0];
-         $this->assertSame('8a7d6495-e814-4e33-be8c-45d42132dcf9', $first->sourceGuid);
+        $first = $page->records[0];
+        $this->assertSame('8a7d6495-e814-4e33-be8c-45d42132dcf9', $first->sourceGuid);
         $this->assertSame('DigiVol', $first->center);
         $this->assertSame('Megadiverse: The Flora and Mycota of Venezuela (Part 6)', $first->project);
         $this->assertSame(1.0, $first->workUnit);
         $this->assertSame(1, $first->rawCount);
         $this->assertSame('2026-06-07T15:15:34+00:00', $first->timestampUtc->toIso8601String());
+    }
+
+    public function test_digivol_adapter_requests_the_given_time_window(): void
+    {
+        $event = Event::create([
+            'year' => 2026,
+            'season' => 'fall',
+            'starts_at' => '2026-10-07 11:00:00',
+            'ends_at' => '2026-10-11 10:59:00',
+            'is_public' => true,
+            'is_live' => true,
+            'is_archived' => false,
+        ]);
+
+        $source = Source::create([
+            'name' => 'DigiVol',
+            'slug' => 'digivol-window',
+            'base_url' => 'https://example.test/digivol-window',
+            'adapter_type' => 'digivol_json',
+            'is_active' => true,
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://example.test/digivol-window*' => Http::response(['items' => []]),
+        ]);
+
+        app(DigivolJsonSourceAdapter::class)->fetchPage(
+            $event,
+            $source,
+            null,
+            Carbon::parse('2026-10-08T12:00:00Z'),
+            Carbon::parse('2026-10-08T12:05:00Z'),
+        );
+
+        Http::assertSent(function ($request) {
+            return $request['timestampStart'] === '2026-10-08T12:00:00+00:00'
+                && $request['timestampEnd'] === '2026-10-08T12:05:00+00:00'
+                && ! isset($request['since']);
+        });
+    }
+
+    public function test_digivol_adapter_starts_the_window_at_the_event_start_without_a_checkpoint(): void
+    {
+        $event = Event::create([
+            'year' => 2026,
+            'season' => 'fall',
+            'starts_at' => '2026-10-07 11:00:00',
+            'ends_at' => '2026-10-11 10:59:00',
+            'is_public' => true,
+            'is_live' => true,
+            'is_archived' => false,
+        ]);
+
+        $source = Source::create([
+            'name' => 'DigiVol',
+            'slug' => 'digivol-first-run',
+            'base_url' => 'https://example.test/digivol-first-run',
+            'adapter_type' => 'digivol_json',
+            'is_active' => true,
+        ]);
+
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://example.test/digivol-first-run*' => Http::response(['items' => []]),
+        ]);
+
+        app(DigivolJsonSourceAdapter::class)->fetchPage(
+            $event,
+            $source,
+            null,
+            null,
+            Carbon::parse('2026-10-07T11:01:00Z'),
+        );
+
+        Http::assertSent(function ($request) {
+            return $request['timestampStart'] === '2026-10-07T11:00:00+00:00'
+                && $request['timestampEnd'] === '2026-10-07T11:01:00+00:00';
+        });
     }
 
     public function test_digivol_adapter_handles_empty_payload(): void

@@ -47,6 +47,7 @@ class DigivolJsonSourceAdapter implements SourceAdapter
         Source $source,
         ?string $pageToken = null,
         ?CarbonInterface $since = null,
+        ?CarbonInterface $until = null,
     ): SourcePage {
         if (blank($source->base_url)) {
             return SourcePage::empty();
@@ -57,10 +58,12 @@ class DigivolJsonSourceAdapter implements SourceAdapter
         // Don't allow negative offset
         $rowStart = max(0, $rowStart);
 
+        // DigiVol ignores event/since; without timestampStart it pages its entire history
         $response = Http::timeout(30)->acceptJson()->get($source->base_url, array_filter([
             'event' => $event->slug,
             'rowStart' => $rowStart,
-            'since' => $since?->toIso8601String(),
+            'timestampStart' => ($since ?? $event->starts_at)?->toIso8601String(),
+            'timestampEnd' => ($until ?? now())->toIso8601String(),
         ], fn ($value) => filled($value)));
 
         $response->throw();
@@ -145,6 +148,7 @@ class DigivolJsonSourceAdapter implements SourceAdapter
 
         // If we got a full page, there might be more records
         $nextRowStart = $currentRowStart + $recordCount;
+
         return (string) $nextRowStart;
     }
 }

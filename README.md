@@ -113,20 +113,17 @@ php artisan import:historical --path=/data/web/wedigbio-reports/shiny-server
 ```
 
 ### Supervisor queue worker config (environment-aware)
-- Template file: `ops/supervisor/wedigbio-ingest.conf.template`
-- Generated file: `ops/supervisor/wedigbio-ingest.conf` (git-ignored)
-- Deployer task `supervisor:generate-config` fills these placeholders per environment:
-  - `{{SUPERVISOR_DIRECTORY}}`
-  - `{{SUPERVISOR_LOG_FILE}}`
-  - `{{APP_ENV}}`
-- Environment behavior:
-  - `production`/`development`: directory `/data/web/wedigbio-reports/current`, log `/data/web/wedigbio-reports/shared/storage/logs/wedigbio-ingest.log`
-  - `local`: directory `/data/web/wedigbio-reports`, log `/data/web/wedigbio-reports/storage/logs/wedigbio-ingest.log`
+- Templates: `resources/supervisor/*.conf`
+- Rendered files: `storage/app/supervisor/*.conf` (shared storage, git-ignored)
+- `php artisan app:deploy-files --current-path=<path>` renders the templates on the server during deploy (Deployer task `artisan:app:deploy-files`), filling:
+  - `{{APP_CURRENT_PATH}}` — `--current-path`, or the app's base path when omitted (`/data/web/wedigbio-reports/current` on servers); logs go to `{{APP_CURRENT_PATH}}/storage/logs/wedigbio-ingest.log`
+  - `{{APP_ENV}}` — `config('app.env')`
+- Servers load the rendered files through Supervisor's `[include]` of `/data/web/wedigbio-reports/current/storage/app/supervisor/*.conf`. Because `storage` is shared, `supervisor:reload` sees the new config before `deploy:publish`.
 - During deploy, `supervisor:ensure-log-dir` runs before `supervisor:reload` so `supervisorctl reread` does not fail due to a missing log directory.
-- Local setup helper:
+- Locally, render the files with:
 
 ```bash
-./setup-supervisor-local.sh
+php artisan app:deploy-files
 ```
 
 ---

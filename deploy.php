@@ -132,7 +132,7 @@ task('deploy', [
 
     // Phase 7: Domain-Specific Supervisor Management
     'supervisor:ensure-log-dir',    // Ensure log directory exists first
-    'supervisor:generate-config',  // Generate supervisor config from template
+    'artisan:app:deploy-files',     // Render supervisor config into shared storage
     'supervisor:reload', // Update configs only
     'artisan:queue:restart',
 
