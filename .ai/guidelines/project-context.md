@@ -20,7 +20,7 @@ Laravel 13 + Filament 5 admin panel application. PHP >= 8.5. `.env.example` is M
   - `PollSourcesJob` fans out `IngestPageJob` per enabled event/source pair
   - `IngestPageJob` fetches one page, upserts idempotently via `dedupe_key`, paginates recursively, and dispatches `AggregateHourlyJob` after final page
   - `AggregateHourlyJob` also runs hourly as safety net via scheduler
-- Worker process management: **Supervisor** (template: `ops/supervisor/wedigbio-ingest.conf.template`, generated: `ops/supervisor/wedigbio-ingest.conf`), runs `php artisan queue:work beanstalkd --queue=wedigbio-ingest --sleep=3 --tries=3 --timeout=120 --max-time=3600`
+- Worker process management: **Supervisor** (template: `resources/supervisor/wedigbio-ingest.conf`, rendered by `php artisan app:deploy-files` into shared `storage/app/supervisor/`), runs `php artisan queue:work beanstalkd --queue=wedigbio-ingest --sleep=3 --tries=3 --timeout=120 --max-time=3600`
 - Source adapter selection is centralized in `app/Ingestion/SourceAdapterManager.php` (`http_json`/`api_json`, `biospex_json`, `digivol_json`).
 - Historical CSV import is handled by `app/Services/HistoricalTranscriptionImporter.php` and exposed as `import:historical` via `app/Console/Commands/ImportHistoricalCommand.php`.
 

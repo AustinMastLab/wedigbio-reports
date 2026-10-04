@@ -54,8 +54,6 @@ task('set:permissions', function () {
     run('sudo truncate -s 0 {{release_or_current_path}}/storage/logs/*.log');
 });
 
-
-
 /**
  * Reload Supervisor configuration
  * Executes reread and update commands for Supervisor
@@ -169,7 +167,6 @@ task('env:ssm', function () {
     run($cmd);
 })->once();
 
-
 desc('Verify flat deployment structure');
 task('deploy:verify-structure', function () {
     $nestCheck = run('find {{release_path}} -type d -name "deployment-package" | wc -l');
@@ -246,43 +243,10 @@ task('artisan:filament:optimize', function () {
  * =============================================================================
  */
 
-desc('Generate supervisor config from template');
-task('supervisor:generate-config', function () {
-    $templateFile = 'ops/supervisor/wedigbio-ingest.conf.template';
-    $outputFile = 'ops/supervisor/wedigbio-ingest.conf';
-
-    if (!file_exists($templateFile)) {
-        throw new \Exception("Template file not found: {$templateFile}");
-    }
-
-    $template = file_get_contents($templateFile);
-    $environment = currentHost()->get('environment') ?? 'development';
-
-    // Production and Development use /data/web/wedigbio-reports/current
-    // Local development uses absolute path /data/web/wedigbio-reports
-    $directory = ($environment === 'production' || $environment === 'development')
-        ? '/data/web/wedigbio-reports/current'
-        : '/data/web/wedigbio-reports';
-
-    // Deployer hosts write logs into shared storage; local writes to app storage
-    $logFile = ($environment === 'production' || $environment === 'development')
-        ? '/data/web/wedigbio-reports/shared/storage/logs/wedigbio-ingest.log'
-        : '/data/web/wedigbio-reports/storage/logs/wedigbio-ingest.log';
-
-    $replacements = [
-        '{{SUPERVISOR_DIRECTORY}}' => $directory,
-        '{{APP_ENV}}' => $environment,
-        '{{SUPERVISOR_LOG_FILE}}' => $logFile,
-    ];
-
-    $config = str_replace(
-        array_keys($replacements),
-        array_values($replacements),
-        $template
-    );
-
-    file_put_contents($outputFile, $config);
-    writeln("✅ Supervisor config generated for {$environment} environment");
-    writeln("   Directory: {$directory}");
-    writeln("   Log file: {$logFile}");
-})->once();
+desc('Render Supervisor configs from resources/supervisor into shared storage');
+task('artisan:app:deploy-files', function () {
+    // The server's Supervisor [include] reads current/storage/app/supervisor/*.conf;
+    // storage is shared, so the reload before publish already sees the new file
+    cd('{{release_or_current_path}}');
+    run('php artisan app:deploy-files --current-path={{current_path}} --ansi');
+});
