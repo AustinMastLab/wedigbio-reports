@@ -33,7 +33,11 @@
 namespace Deployer;
 
 require 'recipe/laravel.php';
+require __DIR__.'/vendor/austinmastlab/deployer-recipes/recipe/ssm-env.php';
 require 'deploy/custom.php';
+
+// .env is generated from SSM /wedigbio-reports/{environment} by env:ssm (austinmastlab/deployer-recipes).
+set('ssm_app', 'wedigbio-reports');
 
 // Deployment Configuration
 set('repository', 'https://github.com/AustinMastLab/wedigbio-reports.git');
