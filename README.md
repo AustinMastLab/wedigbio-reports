@@ -100,13 +100,13 @@ Critical parameters only. Non-critical defaults are managed in `config/` files.
 - Requirements: configured AWS CLI credentials; `jq` is required by `remove-env-params`.
 ---
 ## Deployment
-- Deployments run through **GitHub Actions + Deployer**.
-- Pushes to `main` trigger the production workflow in `.github/workflows/deploy.yml`; pushes to `development` trigger the development workflow.
+- Deployments run through **GitHub Actions + Deployer 8**.
+- Pushes to `main` trigger the production workflow in `.github/workflows/deploy.yml`. Pushes to `development` don't deploy; the development job only runs from a manual workflow run, and this site currently has no development deployment.
 - GitHub Actions builds Vite assets with `npm run build` and uploads a deployment artifact; the server does **not** build frontend assets or need `node_modules`.
 - Deployer installs the release under `/data/web/wedigbio-reports/releases/<n>` and publishes the active symlink at `/data/web/wedigbio-reports/current`.
 - Production Nginx/PHP-FPM should serve Laravel from:
   - `/data/web/wedigbio-reports/current/public`
-- Environment files on the server are generated from AWS SSM Parameter Store during deploy by the `env:ssm` task from the shared [deployer-recipes](https://github.com/AustinMastLab/deployer-recipes) package (`set('ssm_app', 'wedigbio-reports')` in `deploy.php`). It keeps the last 5 `.env.backup.*` files in `shared/`.
+- Environment files on the server are generated from AWS SSM Parameter Store during deploy by the `env:ssm` task from the shared [deployer-recipes](https://github.com/AustinMastLab/deployer-recipes) package (`set('ssm_app', 'wedigbio-reports')` in `deploy.php`). It keeps the last 5 `.env.backup.*` files in `shared/`. Don't edit the server's `.env` by hand; change the value in SSM and redeploy, or the next deploy will overwrite the edit.
 - Historical CSV import is **not** part of normal deploys. Run it manually when needed with:
 
 ```bash
