@@ -93,8 +93,9 @@ Critical parameters only. Non-critical defaults are managed in `config/` files.
 | `php artisan responsecache:clear` | Clear cached chart API responses (archived events) |
 ---
 ## Environment parameter scripts
-- `push-env-params <development|production>` pushes keys from `.env.aws.<environment>` into AWS SSM Parameter Store under `/<app>/<environment>/...`.
-- `remove-env-params <development|production>` deletes all SSM parameters under `/wedigbio-reports/<environment>` in batches.
+- `vendor/bin/push-env-params wedigbio-reports <development|production>` pushes keys from `.env.aws.<environment>` into AWS SSM Parameter Store under `/wedigbio-reports/<environment>/...`.
+- `vendor/bin/remove-env-params wedigbio-reports <development|production>` deletes all SSM parameters under `/wedigbio-reports/<environment>` in batches, after you type the environment name to confirm.
+- Both come from the shared [deployer-recipes](https://github.com/AustinMastLab/deployer-recipes) package (a dev dependency).
 - These scripts do **not** store secrets in the repository; they operate only with your local AWS CLI identity and permissions.
 - Requirements: configured AWS CLI credentials; `jq` is required by `remove-env-params`.
 ---
@@ -105,7 +106,7 @@ Critical parameters only. Non-critical defaults are managed in `config/` files.
 - Deployer installs the release under `/data/web/wedigbio-reports/releases/<n>` and publishes the active symlink at `/data/web/wedigbio-reports/current`.
 - Production Nginx/PHP-FPM should serve Laravel from:
   - `/data/web/wedigbio-reports/current/public`
-- Environment files on the server are generated from AWS SSM Parameter Store during deploy via the server-side `generate-env` helper.
+- Environment files on the server are generated from AWS SSM Parameter Store during deploy by the `env:ssm` task from the shared [deployer-recipes](https://github.com/AustinMastLab/deployer-recipes) package (`set('ssm_app', 'wedigbio-reports')` in `deploy.php`). It keeps the last 5 `.env.backup.*` files in `shared/`.
 - Historical CSV import is **not** part of normal deploys. Run it manually when needed with:
 
 ```bash
