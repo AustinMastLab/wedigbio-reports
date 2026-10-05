@@ -12,7 +12,7 @@ composer dev
 ```
 - No R/Shiny runtime command is defined in `composer.json`; run any Shiny scripts manually from the target `shiny-server/<year>/` directory.
 - `laravel/pao` is installed in `require-dev`; if agent tooling commands are missing locally, run `composer install` to restore dev dependencies.
-- Root scripts `push-env-params` / `remove-env-params` manage AWS SSM parameters for `.env.aws.<environment>` values (expects AWS CLI; `remove-env-params` also requires `jq`).
+- `vendor/bin/push-env-params` / `vendor/bin/remove-env-params` (from `austinmastlab/deployer-recipes`) manage AWS SSM parameters for `.env.aws.<environment>` values; pass the app name first, e.g. `vendor/bin/push-env-params wedigbio-reports development` (expects AWS CLI and `jq`).
 ## Ingestion and import commands
 ```bash
 php artisan ingest:poll

@@ -5,6 +5,13 @@
     "description": "The skeleton application for the Laravel framework.",
     "keywords": ["laravel", "framework"],
     "license": "MIT",
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/AustinMastLab/deployer-recipes",
+            "no-api": true
+        }
+    ],
     "require": {
         "php": "^8.5",
         "filament/filament": "~5.0",
@@ -14,7 +21,8 @@
         "spatie/laravel-responsecache": "^8.4"
     },
     "require-dev": {
-        "deployer/deployer": "^7.4",
+        "austinmastlab/deployer-recipes": "^1.0.1",
+        "deployer/deployer": "^8.0",
         "fakerphp/faker": "^1.23",
         "laravel/boost": "^2.10",
         "laravel/pail": "^1.2.5",
