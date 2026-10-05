@@ -21,8 +21,8 @@
         "spatie/laravel-responsecache": "^8.4"
     },
     "require-dev": {
-        "austinmastlab/deployer-recipes": "^1.0",
-        "deployer/deployer": "^7.4",
+        "austinmastlab/deployer-recipes": "^1.0.1",
+        "deployer/deployer": "^8.0",
         "fakerphp/faker": "^1.23",
         "laravel/boost": "^2.10",
         "laravel/pail": "^1.2.5",
