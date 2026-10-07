@@ -28,11 +28,11 @@ class ChartController extends Controller
     private function meta(Event $event): array
     {
         return [
-            'event'        => $event->slug,
+            'event' => $event->slug,
             'generated_at' => now()->toIso8601String(),
-            'is_live'      => $event->is_live,
-            'metric_mode'  => 'weighted',
-            'bucket_size'  => $this->bucketSize($event),
+            'is_live' => $event->is_live,
+            'metric_mode' => 'weighted',
+            'bucket_size' => $this->bucketSize($event),
         ];
     }
 
@@ -63,7 +63,7 @@ class ChartController extends Controller
         }
 
         // Event not yet started, or started less than 60 minutes ago → minute buckets
-        if (now()->lessThan($event->starts_at) || now()->diffInMinutes($event->starts_at) < 60) {
+        if (now()->lessThan($event->starts_at->copy()->addMinutes(60))) {
             return 'minute';
         }
 
@@ -99,11 +99,11 @@ class ChartController extends Controller
             $cumulativeRaw += $r->raw_count;
 
             return [
-                'ts'                  => Carbon::parse((string) $r->chart_ts, 'UTC')->toIso8601String(),
-                'weighted'            => (float) $r->work_unit,
-                'raw'                 => $r->raw_count,
+                'ts' => Carbon::parse((string) $r->chart_ts, 'UTC')->toIso8601String(),
+                'weighted' => (float) $r->work_unit,
+                'raw' => $r->raw_count,
                 'cumulative_weighted' => round($cumulativeWeighted, 4),
-                'cumulative_raw'      => $cumulativeRaw,
+                'cumulative_raw' => $cumulativeRaw,
             ];
         });
 
@@ -116,7 +116,7 @@ class ChartController extends Controller
 
         if ($event->is_live) {
             $rows = $event->transcriptionRecords()
-                ->selectRaw($this->bucketExpr($event) . ' as bucket_hour_utc')
+                ->selectRaw($this->bucketExpr($event).' as bucket_hour_utc')
                 ->selectRaw('SUM(work_unit) as weighted')
                 ->selectRaw('SUM(raw_count) as raw')
                 ->groupBy('bucket_hour_utc')
@@ -132,7 +132,7 @@ class ChartController extends Controller
             // Fallback for events where queued aggregation has not run yet.
             if ($rows->isEmpty()) {
                 $rows = $event->transcriptionRecords()
-                    ->selectRaw($this->bucketExpr($event) . ' as bucket_hour_utc')
+                    ->selectRaw($this->bucketExpr($event).' as bucket_hour_utc')
                     ->selectRaw('SUM(work_unit) as weighted')
                     ->selectRaw('SUM(raw_count) as raw')
                     ->groupBy('bucket_hour_utc')
@@ -142,9 +142,9 @@ class ChartController extends Controller
         }
 
         $series = $rows->map(fn ($r) => [
-            'hour'     => $this->toIsoHour($r->bucket_hour_utc),
+            'hour' => $this->toIsoHour($r->bucket_hour_utc),
             'weighted' => round((float) $r->weighted, 4),
-            'raw'      => (int) $r->raw,
+            'raw' => (int) $r->raw,
         ]);
 
         return response()->json(['meta' => $this->meta($event), 'series' => $series]);
@@ -157,7 +157,7 @@ class ChartController extends Controller
         if ($event->is_live) {
             $rows = $event->transcriptionRecords()
                 ->select('center')
-                ->selectRaw($this->bucketExpr($event) . ' as bucket_hour_utc')
+                ->selectRaw($this->bucketExpr($event).' as bucket_hour_utc')
                 ->selectRaw('SUM(work_unit) as weighted_sum')
                 ->selectRaw('SUM(raw_count) as raw_sum')
                 ->groupBy('center', 'bucket_hour_utc')
@@ -175,7 +175,7 @@ class ChartController extends Controller
             if ($rows->isEmpty()) {
                 $rows = $event->transcriptionRecords()
                     ->select('center')
-                    ->selectRaw($this->bucketExpr($event) . ' as bucket_hour_utc')
+                    ->selectRaw($this->bucketExpr($event).' as bucket_hour_utc')
                     ->selectRaw('SUM(work_unit) as weighted_sum')
                     ->selectRaw('SUM(raw_count) as raw_sum')
                     ->groupBy('center', 'bucket_hour_utc')
@@ -194,11 +194,11 @@ class ChartController extends Controller
                 $cumulativeRaw += $r->raw_sum;
 
                 return [
-                    'hour'                => $this->toIsoHour($r->bucket_hour_utc),
-                    'weighted'            => round((float) $r->weighted_sum, 4),
+                    'hour' => $this->toIsoHour($r->bucket_hour_utc),
+                    'weighted' => round((float) $r->weighted_sum, 4),
                     'cumulative_weighted' => round($cumulativeWeighted, 4),
-                    'raw'                 => $r->raw_sum,
-                    'cumulative_raw'      => $cumulativeRaw,
+                    'raw' => $r->raw_sum,
+                    'cumulative_raw' => $cumulativeRaw,
                 ];
             });
 
@@ -219,12 +219,12 @@ class ChartController extends Controller
             ->first();
 
         return response()->json([
-            'meta'    => $this->meta($event),
+            'meta' => $this->meta($event),
             'summary' => [
-                'weighted_total'   => round((float) ($totals->weighted_total ?? 0), 4),
-                'raw_total'        => (int) ($totals->raw_total ?? 0),
-                'center_count'     => (int) ($totals->center_count ?? 0),
-                'first_timestamp'  => $totals->first_ts,
+                'weighted_total' => round((float) ($totals->weighted_total ?? 0), 4),
+                'raw_total' => (int) ($totals->raw_total ?? 0),
+                'center_count' => (int) ($totals->center_count ?? 0),
+                'first_timestamp' => $totals->first_ts,
                 'latest_timestamp' => $totals->latest_ts,
             ],
         ]);
