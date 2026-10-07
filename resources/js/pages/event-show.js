@@ -333,10 +333,16 @@ function initEventShowDashboard() {
         const datasets = paddedSeries.map((center, index) => {
             const valuesByHour = Object.fromEntries(center.points.map((point) => [point.hour, point.cumulative_weighted]));
             const color = centerColors(index);
+            // Carry the cumulative total through hours with no new records so the line doesn't stop early
+            let lastValue = null;
 
             return {
                 label: center.center,
-                data: allHours.map((hour) => valuesByHour[hour] ?? null),
+                data: allHours.map((hour) => {
+                    lastValue = valuesByHour[hour] ?? lastValue;
+
+                    return lastValue;
+                }),
                 borderColor: color,
                 backgroundColor: hexToRgba(color, 0.10),
                 pointRadius: 0,
