@@ -16,7 +16,7 @@ class IngestCloseEndedCommand extends Command
      * Minutes after an event ends before it is closed, so records stamped just
      * before the end but published late can still be fetched.
      */
-    private const GRACE_MINUTES = 15;
+    public const GRACE_MINUTES = 15;
 
     /**
      * Minutes after an event ends when it is archived even if a source's final

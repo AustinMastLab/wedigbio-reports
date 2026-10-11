@@ -5,6 +5,8 @@ namespace Tests\Feature\Ingestion;
 use App\Models\Event;
 use App\Models\Source;
 use App\Models\SourceCheckpoint;
+use Illuminate\Console\Scheduling\Event as ScheduledEvent;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -86,6 +88,31 @@ class IngestCloseEndedCommandTest extends TestCase
 
         $this->assertFalse($event->fresh()->is_live);
         $this->assertTrue($event->fresh()->is_archived);
+    }
+
+    public function test_schedule_skips_close_out_while_no_event_is_past_its_grace_period(): void
+    {
+        $this->travelTo('2026-10-11 11:09:00');
+        $this->createEndedEventWithDigivol('digivol-schedule-grace');
+
+        $this->assertFalse($this->closeEndedScheduleEvent()->filtersPass($this->app));
+    }
+
+    public function test_schedule_runs_close_out_once_an_event_is_past_its_grace_period(): void
+    {
+        $this->travelTo('2026-10-11 11:14:00');
+        $this->createEndedEventWithDigivol('digivol-schedule-due');
+
+        $this->assertTrue($this->closeEndedScheduleEvent()->filtersPass($this->app));
+    }
+
+    private function closeEndedScheduleEvent(): ScheduledEvent
+    {
+        // Schedule callbacks registered with withSchedule() are attached when Artisan starts
+        $this->artisan('schedule:list')->assertSuccessful();
+
+        return collect(app(Schedule::class)->events())
+            ->first(fn (ScheduledEvent $event) => str_contains((string) $event->command, 'ingest:close-ended'));
     }
 
     private function createEndedEventWithDigivol(string $slug): Event

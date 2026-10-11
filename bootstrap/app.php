@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\IngestCloseEndedCommand;
 use App\Jobs\PollSourcesJob;
 use App\Models\Event;
 use Illuminate\Console\Scheduling\Schedule;
@@ -31,8 +32,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // Hourly safety net — re-aggregate all active events even if ingestion had no new pages
         $schedule->command('ingest:aggregate')->hourly()->withoutOverlapping();
 
-        // Final catch-up and archive for live events that ended over 15 minutes ago
-        $schedule->command('ingest:close-ended')->everyMinute()->withoutOverlapping();
+        // Final catch-up and archive for live events that ended over 15 minutes ago;
+        // the guard avoids starting a process every minute when no event needs closing
+        $schedule->command('ingest:close-ended')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->when(static fn (): bool => Event::query()
+                ->where('is_live', true)
+                ->where('is_archived', false)
+                ->where('ends_at', '<=', now()->subMinutes(IngestCloseEndedCommand::GRACE_MINUTES))
+                ->exists());
     })
     ->withMiddleware(function (Middleware $middleware): void {
         //
