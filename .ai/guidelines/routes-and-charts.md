@@ -2,7 +2,7 @@
 
 ## Public routes (`routes/web.php`)
 - `/` → `EventController@index` — lists public events (`is_public = true`), ordered by `starts_at` desc
-- `/events/embed?chart=total-activity|activity-by-center` → `EventController@embedChart` — embeddable single-chart page for Drupal blocks; auto-discovers current **public live** event and returns an error view for invalid chart type or when no public live event exists
+- `/events/embed?chart=total-activity|activity-by-center` → `EventController@embedChart` — embeddable single-chart page for Drupal blocks; auto-discovers the current **public live** event, or else the public event that ended most recently within `WEDIGBIO_EMBED_SHOW_ENDED_DAYS` days (`config('wedigbio.embed.show_ended_days')`, default 7), and returns an error view for an invalid chart type or when neither exists
 - `/events/{event:slug}` → `EventController@show` — single event dashboard; 404s if `!is_public`
 - `EventController::index()` uses a `Schema::hasTable('events')` guard so tests pass without migrations
 ## API routes (`routes/api.php`, prefix `/api/`)

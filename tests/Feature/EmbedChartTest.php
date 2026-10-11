@@ -27,21 +27,66 @@ class EmbedChartTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_embed_chart_requires_live_event(): void
+    public function test_embed_chart_requires_live_or_recently_ended_event(): void
     {
-        // Create archived event (no live event)
+        // Archived event that ended longer ago than the embed keeps showing ended events
         $archivedEvent = Event::create([
             'name' => 'Archived Event',
             'slug' => 'archived-event',
             'year' => 2025,
-            'starts_at' => now()->subDays(2),
-            'ends_at' => now()->subDay(),
+            'starts_at' => now()->subDays(12),
+            'ends_at' => now()->subDays(8),
             'is_public' => true,
             'is_live' => false,
             'is_archived' => true,
         ]);
 
-        // Embed route should return error message (not chart) when no live event
+        // Embed route should return error message (not chart) when no live or recently ended event
+        $this->get('/events/embed?chart=total-activity')
+            ->assertOk()
+            ->assertSeeText('No Live Event Found');
+    }
+
+    public function test_embed_keeps_showing_an_event_for_a_week_after_it_ends(): void
+    {
+        $olderEvent = Event::create([
+            'year' => 2026,
+            'season' => 'spring',
+            'starts_at' => now()->subDays(10),
+            'ends_at' => now()->subDays(6)->subHour(),
+            'is_public' => true,
+            'is_live' => false,
+            'is_archived' => true,
+        ]);
+
+        $endedEvent = Event::create([
+            'year' => 2026,
+            'season' => 'fall',
+            'starts_at' => now()->subDays(10),
+            'ends_at' => now()->subDays(6),
+            'is_public' => true,
+            'is_live' => false,
+            'is_archived' => true,
+        ]);
+
+        $response = $this->get('/events/embed?chart=total-activity');
+
+        $response->assertViewIs('events.embed-chart');
+        $response->assertViewHas('event', fn ($event) => $event->id === $endedEvent->id);
+    }
+
+    public function test_embed_ignores_recently_ended_non_public_events(): void
+    {
+        Event::create([
+            'year' => 2026,
+            'season' => 'fall',
+            'starts_at' => now()->subDays(5),
+            'ends_at' => now()->subDay(),
+            'is_public' => false,
+            'is_live' => false,
+            'is_archived' => true,
+        ]);
+
         $this->get('/events/embed?chart=total-activity')
             ->assertOk()
             ->assertSeeText('No Live Event Found');
