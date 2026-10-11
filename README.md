@@ -101,8 +101,12 @@ Critical parameters only. Non-critical defaults are managed in `config/` files.
 - Requirements: configured AWS CLI credentials; `jq` is required by `remove-env-params`.
 ---
 ## Deployment
-- Deployments run through **GitHub Actions + Deployer 8**.
-- Pushes to `main` trigger the production workflow in `.github/workflows/deploy.yml`. Pushes to `development` don't deploy; the development job only runs from a manual workflow run, and this site currently has no development deployment.
+- Deployments run through **GitHub Actions + Deployer 8**. `.github/workflows/deploy.yml` calls `deploy-environment.yml` for each environment.
+- **Tests:** `.github/workflows/tests.yml` runs `php artisan test` on every pull request into `main` or `development`, along with Pint on the changed files and `composer audit`. Every deploy runs the tests first and stops if they fail.
+- Pushes to `main` run the tests, deploy to production and create a GitHub release with notes listing the pull requests since the previous release. Pushes to `development` don't deploy; a manual workflow run (Actions → Build and Deploy → Run workflow) deploys the chosen branch to the development server.
+- Only one deploy runs at a time per branch; a second one waits.
+- The deploy trusts only the SSH host keys in `.github/known_hosts`. If a server's keys change, regenerate the file with `ssh-keyscan -t ed25519,ecdsa,rsa <ip>` after checking the fingerprints.
+- Dependabot (`.github/dependabot.yml`) opens weekly update pull requests into `development` for GitHub Actions, Composer and npm.
 - GitHub Actions builds Vite assets with `npm run build` and uploads a deployment artifact; the server does **not** build frontend assets or need `node_modules`.
 - Deployer installs the release under `/data/web/wedigbio-reports/releases/<n>` and publishes the active symlink at `/data/web/wedigbio-reports/current`.
 - Production Nginx/PHP-FPM should serve Laravel from:
