@@ -87,8 +87,9 @@ Critical parameters only. Non-critical defaults are managed in `config/` files.
 | `php artisan import:historical --path=<dir>` | Import all historical CSVs from a `shiny-server`-style directory tree |
 | `php artisan ingest:poll` | Manually trigger one polling cycle for all live events |
 | `php artisan ingest:aggregate` | Rebuild hourly aggregates for all events |
+| `php artisan ingest:close-ended` | Final catch-up and archive for live events that ended 15+ minutes ago (scheduled every minute) |
 | `php artisan health:queues` | Show queue/tube status, checkpoint health, failed job count |
-| `php artisan schedule:run` | Run scheduled jobs (poll sources, aggregate hourly) |
+| `php artisan schedule:run` | Run scheduled jobs (poll sources, aggregate hourly, close ended events) |
 | `php artisan queue:work` | Process background ingestion/aggregation jobs |
 | `php artisan responsecache:clear` | Clear cached chart API responses (archived events) |
 ---

@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\Event;
 use App\Jobs\PollSourcesJob;
+use App\Models\Event;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -30,6 +30,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Hourly safety net — re-aggregate all active events even if ingestion had no new pages
         $schedule->command('ingest:aggregate')->hourly()->withoutOverlapping();
+
+        // Final catch-up and archive for live events that ended over 15 minutes ago
+        $schedule->command('ingest:close-ended')->everyMinute()->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware): void {
         //

@@ -53,6 +53,9 @@ class IngestPageJob implements ShouldQueue
     /**
      * A job dispatched by polling has no window and opens a new run; each
      * continuation page carries its run's window and the newest timestamp seen.
+     *
+     * A catch-up run (closing an ended event) always runs, fetches every page
+     * synchronously in the same process, and leaves aggregation to the caller.
      */
     public function __construct(
         public int $eventId,
@@ -61,6 +64,7 @@ class IngestPageJob implements ShouldQueue
         public ?string $windowStart = null,
         public ?string $windowEnd = null,
         public ?string $latestSeen = null,
+        public bool $catchUp = false,
     ) {}
 
     /**
@@ -83,7 +87,7 @@ class IngestPageJob implements ShouldQueue
 
         $isContinuation = $this->windowEnd !== null;
 
-        if (! $isContinuation && $this->hasRunInProgress($checkpoint)) {
+        if (! $isContinuation && ! $this->catchUp && $this->hasRunInProgress($checkpoint)) {
             Log::info('IngestPageJob skipped, run already in progress', [
                 'event_slug' => $event->slug,
                 'source_slug' => $source->slug,
@@ -187,15 +191,22 @@ class IngestPageJob implements ShouldQueue
                     'source_slug' => $source->slug,
                     'next_page_token' => $page->nextPageToken,
                 ]);
-                self::dispatch(
+                $nextPage = [
                     $event->id,
                     $source->id,
                     $page->nextPageToken,
                     $windowStart?->toIso8601String(),
                     $windowEnd->toIso8601String(),
                     $latestSeen?->toIso8601String(),
-                );
-            } else {
+                    $this->catchUp,
+                ];
+
+                if ($this->catchUp) {
+                    self::dispatchSync(...$nextPage);
+                } else {
+                    self::dispatch(...$nextPage);
+                }
+            } elseif (! $this->catchUp) {
                 Log::info('IngestPageJob reached final page, triggering aggregation', [
                     'event_slug' => $event->slug,
                 ]);
