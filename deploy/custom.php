@@ -119,40 +119,6 @@ task('deploy:ci-artifacts', function () {
     writeln('✅ CI artifacts deployed successfully (Flat structure ensured)');
 });
 
-/*
- * =============================================================================
- * OPCACHE & ENVIRONMENT MANAGEMENT
- * =============================================================================
- */
-
-desc('Reset OpCache after deployment');
-task('opcache:reset', function () {
-    $token = $_ENV['OPCACHE_WEBHOOK_TOKEN'] ?? getenv('OPCACHE_WEBHOOK_TOKEN') ?? '';
-
-    if (empty($token)) {
-        writeln('⚠️  Skipping OpCache reset: OPCACHE_WEBHOOK_TOKEN not set');
-
-        return;
-    }
-
-    $environment = get('environment', 'production');
-    $domain = ($environment === 'production') ? 'biospex.org' : 'dev.biospex.org';
-    $url = "https://api.{$domain}/opcache/reset";
-
-    try {
-        writeln("Triggering OpCache reset via API: {$url}");
-        $response = run("curl -sL -k -X POST -d 'token={$token}' '{$url}'");
-
-        if (str_contains($response, 'successful')) {
-            writeln('✅ OpCache reset successful');
-        } else {
-            throw new \Exception("Response: {$response}");
-        }
-    } catch (\Exception $e) {
-        writeln('❌ OpCache reset failed: '.$e->getMessage());
-    }
-});
-
 desc('Verify flat deployment structure');
 task('deploy:verify-structure', function () {
     $nestCheck = run('find {{release_path}} -type d -name "deployment-package" | wc -l');

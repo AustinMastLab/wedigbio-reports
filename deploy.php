@@ -145,9 +145,6 @@ task('deploy', [
     'deploy:clear_paths',
     'deploy:publish',
 
-    // Phase 6: OpCache Management
-    'opcache:reset',
-
     'deploy:verify-structure',
 ]);
 
