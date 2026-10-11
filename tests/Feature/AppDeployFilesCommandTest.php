@@ -32,7 +32,7 @@ class AppDeployFilesCommandTest extends TestCase
         $config = File::get($this->storagePath.'/app/supervisor/wedigbio-ingest.conf');
 
         $this->assertStringContainsString("directory=/data/web/wedigbio-reports/current\n", $config);
-        $this->assertStringContainsString('stdout_logfile=/data/web/wedigbio-reports/current/storage/logs/wedigbio-ingest.log', $config);
+        $this->assertStringContainsString('stdout_logfile=/var/log/supervisor/wedigbio-reports/wedigbio-ingest.log', $config);
         $this->assertStringContainsString('environment=APP_ENV="testing"', $config);
         $this->assertStringNotContainsString('{{', $config);
     }

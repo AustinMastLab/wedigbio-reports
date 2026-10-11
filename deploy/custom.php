@@ -150,16 +150,13 @@ task('clear:package-cache', function () {
 
 desc('Ensure Supervisor log directory exists');
 task('supervisor:ensure-log-dir', function () {
-    $environment = currentHost()->get('environment') ?? 'development';
-    $logDir = ($environment === 'production' || $environment === 'development')
-        ? '{{deploy_path}}/shared/storage/logs'
-        : '/data/web/wedigbio-reports/storage/logs';
+    // Supervisor (root) writes the worker's stdout_logfile here; see resources/supervisor/wedigbio-ingest.conf
+    $logDir = '/var/log/supervisor/wedigbio-reports';
 
-    run("mkdir -p {$logDir}");
-    run("sudo chown ubuntu:ubuntu {$logDir}");
+    run("sudo mkdir -p {$logDir}");
     run("sudo chmod 755 {$logDir}");
 
-    writeln("✅ Supervisor log directory ready for {$environment}: {$logDir}");
+    writeln("✅ Supervisor log directory ready: {$logDir}");
 });
 
 /**
