@@ -56,7 +56,8 @@ class EventController extends Controller
 
     /**
      * Render an embeddable light-theme single-chart page for Drupal blocks.
-     * Auto-discovers the current live event. Returns "No Event Found" if none exists.
+     * Auto-discovers the current public live event, or else the public event that ended most
+     * recently within `wedigbio.embed.show_ended_days`. Returns "No Event Found" if neither exists.
      * Chart type passed via ?chart=total-activity or ?chart=activity-by-center
      */
     public function embedChart()
@@ -64,18 +65,22 @@ class EventController extends Controller
         $chartType = request()->query('chart');
 
         // Validate chart type
-        if (!in_array($chartType, ['total-activity', 'activity-by-center'])) {
+        if (! in_array($chartType, ['total-activity', 'activity-by-center'])) {
             return view('events.embed-chart-error', [
                 'message' => 'Invalid or missing chart type. Use ?chart=total-activity or ?chart=activity-by-center',
             ]);
         }
 
-        // Find the current live event
+        // Find the current live event, or keep showing the last one for a while after it ends
         $event = Event::where('is_live', true)
             ->where('is_public', true)
-            ->first();
+            ->first()
+            ?? Event::where('is_public', true)
+                ->whereBetween('ends_at', [now()->subDays((int) config('wedigbio.embed.show_ended_days')), now()])
+                ->orderByDesc('ends_at')
+                ->first();
 
-        if (!$event) {
+        if (! $event) {
             return view('events.embed-chart-error', [
                 'message' => 'No live event found.',
             ]);
