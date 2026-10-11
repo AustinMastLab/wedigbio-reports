@@ -17,12 +17,14 @@ composer dev
 ```bash
 php artisan ingest:poll
 php artisan ingest:aggregate
+php artisan ingest:close-ended
 php artisan import:historical {event?} {--path=/absolute/path/to/shiny-server}
 php artisan health:queues
 php artisan update:queries
 ```
 - Command classes live in `app/Console/Commands/` and are auto-discovered via `withCommands()` in `bootstrap/app.php`; scheduler wiring also lives in `bootstrap/app.php` (`routes/console.php` is currently documentation-only).
-- Scheduled jobs: `PollSourcesJob` every minute, `ingest:aggregate` hourly.
+- Scheduled jobs: `PollSourcesJob` every minute, `ingest:aggregate` hourly, `ingest:close-ended` every minute.
+- `ingest:close-ended` closes live events 15 minutes after `ends_at`: it runs a synchronous final catch-up per source (`IngestPageJob` with `catchUp: true`), rebuilds aggregates, then sets `is_live = false` and `is_archived = true`. A failed catch-up keeps the event live for a retry until 60 minutes after the end, then it is archived anyway. Archived chart responses are cached, so archiving always comes last. Its schedule entry has a `when()` guard (like `PollSourcesJob`) so no process starts unless a live event is past the grace period; `schedule:list` still lists it every minute.
 - `health:queues` displays queue backend, tube name, failed job count, checkpoint health, and latest ingestion status.
 - `update:queries` runs one-off schema/data migrations during deploys (e.g., event slug backfill); safe to re-run (skips completed transformations).
 ## Run tests
