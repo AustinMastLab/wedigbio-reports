@@ -138,12 +138,14 @@ task('deploy', [
     'supervisor:ensure-log-dir',    // Ensure log directory exists first
     'artisan:app:deploy-files',     // Render supervisor config into shared storage
     'supervisor:reload', // Update configs only
-    'artisan:queue:restart',
 
     // Phase 8: Finalization
     'set:permissions',
     'deploy:clear_paths',
     'deploy:publish',
+
+    // Restart workers after publish so Supervisor starts them from the new current
+    'artisan:queue:restart',
 
     'deploy:verify-structure',
 ]);

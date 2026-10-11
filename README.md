@@ -122,6 +122,7 @@ php artisan import:historical --path=/data/web/wedigbio-reports/shiny-server
   - `{{APP_ENV}}` — `config('app.env')`
 - Servers load the rendered files through Supervisor's `[include]` of `/data/web/wedigbio-reports/current/storage/app/supervisor/*.conf`. Because `storage` is shared, `supervisor:reload` sees the new config before `deploy:publish`.
 - During deploy, `supervisor:ensure-log-dir` runs before `supervisor:reload` so `supervisorctl reread` does not fail due to a missing log directory.
+- `artisan:queue:restart` runs after `deploy:publish`. The worker runs from `current`, so a restart before publish would bring it back up on the old release.
 - Locally, render the files with:
 
 ```bash
