@@ -11,6 +11,8 @@ export default defineConfig({
             fonts: [
                 bunny('Instrument Sans', {
                     weights: [400, 500, 600],
+                    // latin-ext covers names with characters such as ł, ő, ş and č
+                    subsets: ['latin', 'latin-ext'],
                 }),
             ],
         }),
