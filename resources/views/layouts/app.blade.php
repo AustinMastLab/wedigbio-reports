@@ -20,6 +20,7 @@
     <link rel="manifest" href="{{ asset('site.webmanifest') }}">
     <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
+        @fonts
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @endif
     @stack('head')
