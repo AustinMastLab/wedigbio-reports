@@ -1,7 +1,7 @@
 # CI/CD Deployment Workflow for WeDigBio Reports
 #
 # WORKFLOW:
-# - Manual run (Actions → Build and Deploy → Run workflow) → Tests → Deploys the chosen branch to DEVELOPMENT
+# - Manual run on 'development' branch → Tests → Deploys to DEVELOPMENT
 #   Development is never deployed automatically.
 # - Push to 'main' branch → Tests → Calculates version → Deploys to PRODUCTION → Creates GitHub release (only on success)
 # - Pull requests run the tests on their own (tests.yml)
@@ -165,7 +165,7 @@ jobs:
 
   build-and-deploy-development:
     needs: tests
-    if: "github.event_name == 'workflow_dispatch'"
+    if: "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/development'"
     uses: ./.github/workflows/deploy-environment.yml
     with:
       environment: development
