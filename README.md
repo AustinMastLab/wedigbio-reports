@@ -103,7 +103,7 @@ Critical parameters only. Non-critical defaults are managed in `config/` files.
 ## Deployment
 - Deployments run through **GitHub Actions + Deployer 8**. `.github/workflows/deploy.yml` calls `deploy-environment.yml` for each environment.
 - **Tests:** `.github/workflows/tests.yml` runs `php artisan test` on every pull request into `main` or `development`, along with Pint on the changed files and `composer audit`. Every deploy runs the tests first and stops if they fail.
-- Pushes to `main` run the tests, deploy to production and create a GitHub release with notes listing the pull requests since the previous release. Pushes to `development` don't deploy; a manual workflow run (Actions → Build and Deploy → Run workflow) deploys the chosen branch to the development server.
+- Pushes to `main` run the tests, deploy to production and create a GitHub release with notes listing the pull requests since the previous release. Pushes to `development` don't deploy; a manual workflow run on the `development` branch (Actions → Build and Deploy → Run workflow) deploys it to the development server. Changes reach `development` and `main` through pull requests.
 - Only one deploy runs at a time per branch; a second one waits.
 - The deploy trusts only the SSH host keys in `.github/known_hosts`. If a server's keys change, regenerate the file with `ssh-keyscan -t ed25519,ecdsa,rsa <ip>` after checking the fingerprints.
 - Dependabot (`.github/dependabot.yml`) opens weekly update pull requests into `development` for GitHub Actions, Composer and npm.

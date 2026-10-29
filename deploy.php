@@ -34,10 +34,14 @@ namespace Deployer;
 
 require 'recipe/laravel.php';
 require __DIR__.'/vendor/austinmastlab/deployer-recipes/recipe/ssm-env.php';
+require __DIR__.'/vendor/austinmastlab/deployer-recipes/recipe/ci-artifacts.php';
 require 'deploy/custom.php';
 
 // .env is generated from SSM /wedigbio-reports/{environment} by env:ssm (austinmastlab/deployer-recipes).
 set('ssm_app', 'wedigbio-reports');
+
+// supervisor:reload (deployer-recipes) updates only this site's Supervisor program
+set('supervisor_groups', ['wedigbio-ingest']);
 
 // Deployment Configuration
 set('repository', 'https://github.com/AustinMastLab/wedigbio-reports.git');
